@@ -1,46 +1,148 @@
 {
   "version": 1,
   "mainLocation": {
-    "name": "Home Base — Vienna",
-    "location": { "lat": 48.2082, "lng": 16.3738 }
+    "name": "Home Base — Igoumenitsa",
+    "location": {
+      "lat": 39.507780595135074,
+      "lng": 20.26306024441927
+    }
   },
   "destinations": [
     {
-      "id": "d1-salzburg",
-      "name": "Salzburg",
-      "location": { "lat": 47.8095, "lng": 13.0550 },
-      "attractions": ["Hohensalzburg Fortress", "Mirabell Palace", "Getreidegasse"],
-      "photos": [
-        { "id": "p1", "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Salzburg_Panorama_vom_M%C3%B6nchsberg.jpg/1280px-Salzburg_Panorama_vom_M%C3%B6nchsberg.jpg", "caption": "Old Town skyline" }
-      ],
-      "links": [
-        { "id": "l1", "label": "Official Tourism Site", "url": "https://www.salzburg.info/en" }
-      ],
-      "notes": "Great day trip, book fortress tickets ahead."
+      "id": "3211655f-bc0c-4cf0-9ef0-1963e6b96908",
+      "name": "Preveza",
+      "location": {
+        "lat": 38.95669261396017,
+        "lng": 20.754292741524978
+      },
+      "attractions": [],
+      "photos": [],
+      "links": [],
+      "routeInfo": {
+        "distanceMeters": 86581.6,
+        "durationSeconds": 4546.7,
+        "source": "osrm",
+        "fetchedAt": "2026-07-12T19:16:42.066Z"
+      }
     },
     {
-      "id": "d2-hallstatt",
-      "name": "Hallstatt",
-      "location": { "lat": 47.5622, "lng": 13.6493 },
-      "attractions": ["Hallstatt Skywalk", "Salt Mine", "Lakeside village view"],
-      "photos": [
-        { "id": "p2", "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Hallstatt_Panorama_View.jpg/1280px-Hallstatt_Panorama_View.jpg", "caption": "Lakeside view" }
-      ],
-      "links": [
-        { "id": "l2", "label": "Hallstatt Tourism", "url": "https://www.dachstein-salzkammergut.at/en/hallstatt" }
-      ],
-      "notes": "Arrive early to beat the tour buses."
-    },
-    {
-      "id": "d3-graz",
-      "name": "Graz",
-      "location": { "lat": 47.0707, "lng": 15.4395 },
-      "attractions": ["Schlossberg", "Graz Armoury", "Old Town"],
+      "id": "754c4aba-2c6e-4436-94be-670066b3fb5b",
+      "name": "Korfu",
+      "location": {
+        "lat": 39.43346380016852,
+        "lng": 19.909760690121388
+      },
+      "attractions": [],
       "photos": [],
       "links": [
-        { "id": "l3", "label": "Graz Tourism", "url": "https://www.graztourismus.at/en" }
+        {
+          "id": "51071709-babd-4cbe-929e-69db43f765ce",
+          "label": "Issos Beach",
+          "url": "https://atcorfu.com/wp-content/uploads/2015/05/issos.jpg"
+        }
       ],
-      "notes": ""
+      "routeInfo": {
+        "distanceMeters": 37681.9,
+        "durationSeconds": 6431,
+        "source": "osrm",
+        "fetchedAt": "2026-07-12T19:43:42.875Z"
+      }
+    },
+    {
+      "id": "1853064a-d82b-4981-9f7c-e84c84632525",
+      "name": "Nikopolis",
+      "location": {
+        "lat": 39.02583905318361,
+        "lng": 20.732506364607893
+      },
+      "attractions": [],
+      "photos": [
+        {
+          "id": "5838f5ca-72b3-43f1-b446-d5667a1382f5",
+          "url": "https://epirusadventures.com/wp-content/uploads/2023/02/untitled-20.jpg",
+          "caption": "Theater"
+        }
+      ],
+      "links": [],
+      "routeInfo": {
+        "distanceMeters": 79444.9,
+        "durationSeconds": 4197.9,
+        "source": "osrm",
+        "fetchedAt": "2026-07-12T19:48:18.385Z"
+      }
+    },
+    {
+      "id": "cb5cca73-fc56-49eb-b314-34c6dcf7dd7c",
+      "name": "Syvota (Zavia)",
+      "location": {
+        "lat": 39.40050058163377,
+        "lng": 20.24960388082091
+      },
+      "attractions": [],
+      "photos": [
+        {
+          "id": "979b75ae-400d-4171-98f0-e7bcfd5bdbc4",
+          "url": "https://nikana.gr/images/3496/zavia-beach-sivota.jpg",
+          "caption": "Zavia Above"
+        },
+        {
+          "id": "55a95d4c-986d-4ef9-806c-991c22eba038",
+          "url": "https://www.maestrotravel.rs/wp-content/uploads/2019/11/Zavia-Sivota-00.jpg",
+          "caption": "Zavia Beach"
+        }
+      ],
+      "links": [
+        {
+          "id": "3db2532e-3225-42e5-a6ea-e2ba8c2a42f8",
+          "label": "Tripadvisor",
+          "url": "https://www.tripadvisor.com/Attraction_Review-g608863-d12946126-Reviews-Zavia_Beach-Syvota_Igoumenitsa_Thesprotia_Region_Epirus.html"
+        }
+      ],
+      "routeInfo": {
+        "distanceMeters": 24925.9,
+        "durationSeconds": 1795.3,
+        "source": "osrm",
+        "fetchedAt": "2026-07-12T19:53:26.526Z"
+      }
+    },
+    {
+      "id": "8c344213-326c-427a-abb3-0d7332f44803",
+      "name": "Lefkada (Porto Katsiki)",
+      "location": {
+        "lat": 38.60112482004207,
+        "lng": 20.549235477343036
+      },
+      "attractions": [],
+      "photos": [
+        {
+          "id": "169fe2ee-348b-41ef-8cee-7b37bf16b425",
+          "url": "https://nikana.gr/images/2511/porto-katsiki-beach-lefkada-1.jpg",
+          "caption": "Porto Katsiki #1"
+        },
+        {
+          "id": "25a3b420-baa9-47db-b719-a32dd9799dad",
+          "url": "https://www.grieksegids.nl/fotos/lefkas/porto-katsiki/groot/porto-katsiki-036.jpg",
+          "caption": "Porto Katsiki #2"
+        },
+        {
+          "id": "02966c2a-0a22-4abd-b361-95f46840748a",
+          "url": "https://holidayandtrips.com/wp-content/uploads/2021/08/Lefkada-Porto-Katsiki-Grecce-1024x768.jpg",
+          "caption": "Porto Katsiki #3"
+        }
+      ],
+      "links": [
+        {
+          "id": "32cd1192-d2a0-4a82-a47b-2460ed253c06",
+          "label": "Porto Katsiki",
+          "url": "https://www.tripadvisor.com/Attraction_Review-g15138143-d1230867-Reviews-Porto_Katsiki-Apollonii_Lefkada_Ionian_Islands.html"
+        }
+      ],
+      "routeInfo": {
+        "distanceMeters": 153536.4,
+        "durationSeconds": 9150.1,
+        "source": "osrm",
+        "fetchedAt": "2026-07-13T17:40:17.553Z"
+      }
     }
   ]
 }
