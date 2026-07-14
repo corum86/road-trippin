@@ -53,10 +53,17 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
     <div ref={ref} className="vm-map-export-root" style={frameStyle}>
       <MapContainer center={center} zoom={7} className="vm-map-container" scrollWheelZoom>
         <MapResizeHandler />
+        {/* tileSize 128 + zoomOffset 1 fetches tiles one zoom level deeper and
+            shows them at half size: twice the map detail per pixel ("retina"
+            tiles), which is what makes high-resolution exports actually sharp.
+            maxZoom 18 keeps requests within OSM's z19 limit. */}
         <TileLayer
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           crossOrigin="anonymous"
+          tileSize={128}
+          zoomOffset={1}
+          maxZoom={18}
         />
         {showArrows && (
           <CurvedArrowsOverlay

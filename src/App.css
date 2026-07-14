@@ -426,13 +426,18 @@
 }
 
 .vm-data-controls button,
-.vm-export-image-control button {
+.vm-export-image-control button,
+.vm-export-image-control select {
   border: 1px solid var(--border);
   background: var(--bg);
   border-radius: 6px;
   padding: 6px 12px;
   font-size: 13px;
   color: var(--text);
+}
+
+.vm-export-image-control select {
+  padding: 6px 8px;
 }
 
 .vm-data-hint {
