@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "mainLocation": {
+    "name": "Home Base — Vienna",
+    "location": { "lat": 48.2082, "lng": 16.3738 }
+  },
+  "destinations": [
+    {
+      "id": "d1-salzburg",
+      "name": "Salzburg",
+      "location": { "lat": 47.8095, "lng": 13.0550 },
+      "attractions": ["Hohensalzburg Fortress", "Mirabell Palace", "Getreidegasse"],
+      "photos": [
+        { "id": "p1", "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/Salzburg_Panorama_vom_M%C3%B6nchsberg.jpg/1280px-Salzburg_Panorama_vom_M%C3%B6nchsberg.jpg", "caption": "Old Town skyline" }
+      ],
+      "links": [
+        { "id": "l1", "label": "Official Tourism Site", "url": "https://www.salzburg.info/en" }
+      ],
+      "notes": "Great day trip, book fortress tickets ahead."
+    },
+    {
+      "id": "d2-hallstatt",
+      "name": "Hallstatt",
+      "location": { "lat": 47.5622, "lng": 13.6493 },
+      "attractions": ["Hallstatt Skywalk", "Salt Mine", "Lakeside village view"],
+      "photos": [
+        { "id": "p2", "url": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9c/Hallstatt_Panorama_View.jpg/1280px-Hallstatt_Panorama_View.jpg", "caption": "Lakeside view" }
+      ],
+      "links": [
+        { "id": "l2", "label": "Hallstatt Tourism", "url": "https://www.dachstein-salzkammergut.at/en/hallstatt" }
+      ],
+      "notes": "Arrive early to beat the tour buses."
+    },
+    {
+      "id": "d3-graz",
+      "name": "Graz",
+      "location": { "lat": 47.0707, "lng": 15.4395 },
+      "attractions": ["Schlossberg", "Graz Armoury", "Old Town"],
+      "photos": [],
+      "links": [
+        { "id": "l3", "label": "Graz Tourism", "url": "https://www.graztourismus.at/en" }
+      ],
+      "notes": ""
+    }
+  ]
+}
