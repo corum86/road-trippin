@@ -8,6 +8,7 @@ import { MainLocationEditForm } from '../panels/MainLocationEditForm';
 import { DestinationListSidebar } from '../controls/DestinationListSidebar';
 import { DataImportExportControls } from '../controls/DataImportExportControls';
 import { ExportMapImageButton } from '../controls/ExportMapImageButton';
+import { ArrowsToggleButton } from '../controls/ArrowsToggleButton';
 import {
   MapAspectControls,
   type AspectRatioId,
@@ -53,6 +54,7 @@ export function AppShell() {
   const [pickedLocation, setPickedLocation] = useState<LatLng | null>(null);
   const [aspect, setAspect] = useState<AspectRatioId>('free');
   const [orientation, setOrientation] = useState<MapOrientation>('landscape');
+  const [showArrows, setShowArrows] = useState(true);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
 
   const mapExportRef = useRef<HTMLDivElement>(null);
@@ -127,6 +129,7 @@ export function AppShell() {
       <header className="vm-toolbar">
         <h1>Vacation Map</h1>
         <div className="vm-toolbar-controls">
+          <ArrowsToggleButton showArrows={showArrows} onToggle={setShowArrows} />
           <MapAspectControls
             aspect={aspect}
             orientation={orientation}
@@ -148,6 +151,7 @@ export function AppShell() {
             onEditMainLocation={() => setMode('edit-main')}
             onMapClickWhilePicking={handleMapClickWhilePicking}
             frameStyle={frameStyleFor(aspect, orientation, stageSize)}
+            showArrows={showArrows}
           />
         </div>
 

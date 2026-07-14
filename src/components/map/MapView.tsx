@@ -12,6 +12,7 @@ interface MapViewProps {
   onEditMainLocation: () => void;
   onMapClickWhilePicking?: (lat: number, lng: number) => void;
   frameStyle?: React.CSSProperties;
+  showArrows?: boolean;
 }
 
 function MapClickHandler({ onClick }: { onClick?: (lat: number, lng: number) => void }) {
@@ -42,6 +43,7 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
     onEditMainLocation,
     onMapClickWhilePicking,
     frameStyle,
+    showArrows = true,
   },
   ref,
 ) {
@@ -56,11 +58,13 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           crossOrigin="anonymous"
         />
-        <CurvedArrowsOverlay
-          mainLocation={data.mainLocation}
-          destinations={data.destinations}
-          selectedDestinationId={selectedDestinationId}
-        />
+        {showArrows && (
+          <CurvedArrowsOverlay
+            mainLocation={data.mainLocation}
+            destinations={data.destinations}
+            selectedDestinationId={selectedDestinationId}
+          />
+        )}
         <MainLocationMarker mainLocation={data.mainLocation} onEdit={onEditMainLocation} />
         {data.destinations.map((dest) => (
           <DestinationMarker
