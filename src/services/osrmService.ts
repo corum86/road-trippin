@@ -6,7 +6,11 @@ const ASSUMED_FALLBACK_SPEED_KMH = 60;
 
 interface OsrmRouteResponse {
   code: string;
-  routes?: Array<{ distance: number; duration: number }>;
+  routes?: Array<{
+    distance: number;
+    duration: number;
+    geometry?: { coordinates: Array<[number, number]> };
+  }>;
 }
 
 function estimateFromStraightLine(from: LatLng, to: LatLng): RouteInfo {
@@ -17,11 +21,15 @@ function estimateFromStraightLine(from: LatLng, to: LatLng): RouteInfo {
     durationSeconds,
     source: 'straight-line-estimate',
     fetchedAt: new Date().toISOString(),
+    geometry: [
+      [from.lat, from.lng],
+      [to.lat, to.lng],
+    ],
   };
 }
 
 export async function fetchRoute(from: LatLng, to: LatLng): Promise<RouteInfo> {
-  const url = `${OSRM_BASE_URL}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=false`;
+  const url = `${OSRM_BASE_URL}/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
 
   try {
     const res = await fetch(url);
@@ -34,6 +42,8 @@ export async function fetchRoute(from: LatLng, to: LatLng): Promise<RouteInfo> {
       durationSeconds: route.duration,
       source: 'osrm',
       fetchedAt: new Date().toISOString(),
+      // GeoJSON is [lng, lat]; Leaflet wants [lat, lng]
+      geometry: route.geometry?.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]),
     };
   } catch {
     return estimateFromStraightLine(from, to);

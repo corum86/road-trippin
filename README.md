@@ -17,6 +17,7 @@ Production build: `npm run build`, then `npm run preview` to serve the static `d
 
 - **Map** — Leaflet + react-leaflet with OpenStreetMap tiles. The green star is the main location; red pins are destinations.
 - **Curvy arrows** — decorative bezier curves drawn from the main location to each destination in an SVG overlay that stays anchored through pan and zoom. The selected destination's arrow is highlighted blue.
+- **Display modes** — a toolbar button group switches between curved arrows, actual road routes (OSRM geometry, fetched once per destination and cached; dashed straight line while loading or when routing is unavailable), and points only.
 - **Destination details** — click a destination (marker or sidebar list) to see:
   - Route length and driving time, fetched once per destination from the free [OSRM demo server](https://router.project-osrm.org) and cached. If the request fails, a straight-line estimate is shown instead and clearly labeled.
   - Main attractions, notes, a photo gallery (image URLs, click to enlarge), and links.

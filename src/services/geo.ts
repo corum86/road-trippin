@@ -48,3 +48,28 @@ export function bezierControlPoint(from: Point, to: Point, bow = 0.22): Point {
   const py = dx;
   return { x: mx + px * bow, y: my + py * bow };
 }
+
+/**
+ * Shorten a quadratic bezier so it ends roughly `gap` before its endpoint
+ * (de Casteljau subdivision at t). Keeps at least half the curve so very
+ * short arrows don't collapse. Returns the trimmed control and end points;
+ * the start point is unchanged.
+ */
+export function trimQuadraticBezier(
+  from: Point,
+  control: Point,
+  to: Point,
+  gap: number,
+): { control: Point; end: Point } {
+  const dist = Math.hypot(to.x - from.x, to.y - from.y);
+  const t = Math.max(0.5, 1 - gap / Math.max(dist, 1));
+  const at = (a: number, b: number, c: number) =>
+    (1 - t) * (1 - t) * a + 2 * (1 - t) * t * b + t * t * c;
+  return {
+    control: {
+      x: from.x + (control.x - from.x) * t,
+      y: from.y + (control.y - from.y) * t,
+    },
+    end: { x: at(from.x, control.x, to.x), y: at(from.y, control.y, to.y) },
+  };
+}

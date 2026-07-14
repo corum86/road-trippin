@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useMap, useMapEvents } from 'react-leaflet';
+import type { LatLng as LeafletLatLng, Point as LeafletPoint } from 'leaflet';
 import type { Destination, MainLocation } from '../../types/models';
-import { bezierControlPoint, hashString } from '../../services/geo';
+import { bezierControlPoint, hashString, trimQuadraticBezier } from '../../services/geo';
 
 interface CurvedArrowsOverlayProps {
   mainLocation: MainLocation;
@@ -15,19 +16,57 @@ interface CurvedArrowsOverlayProps {
 const ARROW_PANE = 'vm-arrows';
 const ARROW_PANE_Z_INDEX = '625';
 
+// Arrow thickness scales with zoom: base widths apply at REF_ZOOM and grow or
+// shrink by sqrt(2) per zoom step (half the map's own 2x-per-step rate — full
+// geometric scaling overwhelms the fixed-size pins within a couple of steps),
+// clamped so arrows stay visible far out and reasonable close in.
+const REF_ZOOM = 7;
+const MIN_STROKE = 1.2;
+const MAX_STROKE = 14;
+
+// stop the arrow this many screen pixels short of the destination point, so
+// the arrowhead sits just before the pin instead of underneath it
+const ARROW_TIP_GAP_PX = 12;
+
+function zoomScaleFor(zoom: number): number {
+  return Math.pow(2, (zoom - REF_ZOOM) / 2);
+}
+
 export function CurvedArrowsOverlay({
   mainLocation,
   destinations,
   selectedDestinationId,
 }: CurvedArrowsOverlayProps) {
   const map = useMap();
+  const svgRef = useRef<SVGSVGElement>(null);
   const [recalcTick, setRecalcTick] = useState(0);
 
+  const recalc = () => setRecalcTick((n) => n + 1);
+
   useMapEvents({
-    zoomend: () => setRecalcTick((n) => n + 1),
-    moveend: () => setRecalcTick((n) => n + 1),
-    viewreset: () => setRecalcTick((n) => n + 1),
-    resize: () => setRecalcTick((n) => n + 1),
+    // 'zoom' fires per frame during pinch-zoom and flyTo (and once as an
+    // animated zoom settles), so curves track continuously there.
+    zoom: recalc,
+    zoomend: recalc,
+    moveend: recalc,
+    viewreset: recalc,
+    resize: recalc,
+    // Animated zooms (scroll wheel, +/- buttons) don't re-render mid-flight;
+    // Leaflet instead expects layers to apply a scale/translate transform on
+    // 'zoomanim', which the leaflet-zoom-animated CSS class then transitions.
+    // This is what makes the arrows grow/shrink *during* the zoom.
+    zoomanim: (e) => {
+      const svg = svgRef.current;
+      if (!svg) return;
+      const nw = map.layerPointToLatLng([view.left, view.top]);
+      const scale = map.getZoomScale(e.zoom);
+      const offset = (
+        map as unknown as {
+          _latLngToNewLayerPoint: (ll: LeafletLatLng, z: number, c: LeafletLatLng) => LeafletPoint;
+        }
+      )._latLngToNewLayerPoint(nw, e.zoom, e.center);
+      svg.style.transform = `translate3d(${offset.x}px, ${offset.y}px, 0) scale(${scale})`;
+    },
   });
 
   // Size and place the SVG the way Leaflet's own renderer does: cover the
@@ -61,9 +100,11 @@ export function CurvedArrowsOverlay({
       const side = h % 2 === 0 ? 1 : -1;
       const bow = side * (0.16 + (h % 7) * 0.015);
       const control = bezierControlPoint(origin, end, bow);
+      // shape the bow from the full curve, then cut it short of the pin
+      const trimmed = trimQuadraticBezier(origin, control, end, ARROW_TIP_GAP_PX);
       return {
         id: dest.id,
-        d: `M ${origin.x} ${origin.y} Q ${control.x} ${control.y} ${end.x} ${end.y}`,
+        d: `M ${origin.x} ${origin.y} Q ${trimmed.control.x} ${trimmed.control.y} ${trimmed.end.x} ${trimmed.end.y}`,
         selected: dest.id === selectedDestinationId,
       };
     });
@@ -71,6 +112,20 @@ export function CurvedArrowsOverlay({
     return [...all.filter((p) => !p.selected), ...all.filter((p) => p.selected)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, mainLocation, destinations, selectedDestinationId, recalcTick]);
+
+  // Set the settled transform imperatively, not via the style prop: after a
+  // pure zoom (no pan) the translate values can be identical to the previous
+  // render's, so React's style diff would skip the write and leave the
+  // zoomanim handler's scale() transform stuck on the element.
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (svg) svg.style.transform = `translate3d(${view.left}px, ${view.top}px, 0)`;
+  });
+
+  // fresh on every recalcTick-triggered render
+  const zoomScale = zoomScaleFor(map.getZoom());
+  const shadowOffset = Math.min(1.5 * zoomScale, 4);
+  const shadowBlur = Math.min(1.5 * zoomScale, 5);
 
   // get-or-create keeps this idempotent across re-renders and StrictMode
   let arrowPane = map.getPane(ARROW_PANE);
@@ -82,28 +137,35 @@ export function CurvedArrowsOverlay({
 
   return createPortal(
     <svg
-      className="vm-arrows-svg"
+      ref={svgRef}
+      className="vm-arrows-svg leaflet-zoom-animated"
       width={view.width}
       height={view.height}
       viewBox={`${view.left} ${view.top} ${view.width} ${view.height}`}
       style={{
         position: 'absolute',
-        left: view.left,
-        top: view.top,
+        // transform is managed imperatively (layout effect + zoomanim handler)
+        transformOrigin: '0 0',
         pointerEvents: 'none',
       }}
     >
       <defs>
         <filter id="vm-arrow-shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodColor="#000" floodOpacity="0.35" />
+          <feDropShadow
+            dx="0"
+            dy={shadowOffset}
+            stdDeviation={shadowBlur}
+            floodColor="#000"
+            floodOpacity="0.35"
+          />
         </filter>
         <marker
           id="vm-arrowhead"
           viewBox="0 0 10 10"
           refX="8"
           refY="5"
-          markerWidth="7"
-          markerHeight="7"
+          markerWidth="3.5"
+          markerHeight="3.5"
           orient="auto-start-reverse"
         >
           <path d="M0,0 L10,5 L0,10 z" fill="#e0563f" stroke="#9c3423" strokeWidth="0.6" />
@@ -113,8 +175,8 @@ export function CurvedArrowsOverlay({
           viewBox="0 0 10 10"
           refX="8"
           refY="5"
-          markerWidth="8"
-          markerHeight="8"
+          markerWidth="4"
+          markerHeight="4"
           orient="auto-start-reverse"
         >
           <path d="M0,0 L10,5 L0,10 z" fill="#2563eb" stroke="#1e40af" strokeWidth="0.6" />
@@ -122,7 +184,8 @@ export function CurvedArrowsOverlay({
       </defs>
       <g filter="url(#vm-arrow-shadow)">
         {paths.map((p) => {
-          const strokeWidth = p.selected ? 3.5 : 2.5;
+          const baseWidth = p.selected ? 3.5 : 2.5;
+          const strokeWidth = Math.min(Math.max(baseWidth * zoomScale, MIN_STROKE), MAX_STROKE);
           return (
             <g key={p.id} opacity={p.selected ? 1 : 0.85}>
               {/* casing: 1px border on each side of the colored stroke */}

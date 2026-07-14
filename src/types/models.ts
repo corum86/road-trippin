@@ -20,6 +20,9 @@ export interface RouteInfo {
   durationSeconds: number;
   source: 'osrm' | 'straight-line-estimate';
   fetchedAt: string;
+  /** Road path as [lat, lng] pairs; straight line for estimates. Absent on
+   * data cached before route display was added — refetched when needed. */
+  geometry?: Array<[number, number]>;
 }
 
 export interface Destination {

@@ -4,6 +4,8 @@ import type { VacationMapData } from '../../types/models';
 import { MainLocationMarker } from './MainLocationMarker';
 import { DestinationMarker } from './DestinationMarker';
 import { CurvedArrowsOverlay } from './CurvedArrowsOverlay';
+import { RoutePolylines } from './RoutePolylines';
+import type { RouteDisplayMode } from '../controls/RouteDisplayToggle';
 
 interface MapViewProps {
   data: VacationMapData;
@@ -12,7 +14,7 @@ interface MapViewProps {
   onEditMainLocation: () => void;
   onMapClickWhilePicking?: (lat: number, lng: number) => void;
   frameStyle?: React.CSSProperties;
-  showArrows?: boolean;
+  displayMode?: RouteDisplayMode;
 }
 
 function MapClickHandler({ onClick }: { onClick?: (lat: number, lng: number) => void }) {
@@ -43,7 +45,7 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
     onEditMainLocation,
     onMapClickWhilePicking,
     frameStyle,
-    showArrows = true,
+    displayMode = 'arrows',
   },
   ref,
 ) {
@@ -65,8 +67,15 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
           zoomOffset={1}
           maxZoom={18}
         />
-        {showArrows && (
+        {displayMode === 'arrows' && (
           <CurvedArrowsOverlay
+            mainLocation={data.mainLocation}
+            destinations={data.destinations}
+            selectedDestinationId={selectedDestinationId}
+          />
+        )}
+        {displayMode === 'routes' && (
+          <RoutePolylines
             mainLocation={data.mainLocation}
             destinations={data.destinations}
             selectedDestinationId={selectedDestinationId}
