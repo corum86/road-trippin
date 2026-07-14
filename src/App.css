@@ -316,6 +316,38 @@
   padding: 6px 14px;
 }
 
+.vm-lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  z-index: 1;
+}
+
+.vm-lightbox-nav:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+.vm-lightbox-nav-prev {
+  left: 16px;
+}
+
+.vm-lightbox-nav-next {
+  right: 16px;
+}
+
+.vm-lightbox-counter {
+  color: rgba(255, 255, 255, 0.75);
+}
+
 /* Forms */
 .vm-edit-form {
   display: flex;
