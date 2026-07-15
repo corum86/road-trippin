@@ -1,0 +1,38 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/typescript-node
+{
+	"name": "Node.js & TypeScript",
+	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+	"image": "mcr.microsoft.com/devcontainers/typescript-node:4-24-trixie",
+
+	// Persist Claude Code's auth/session state (~/.claude) in a volume scoped to this
+	// devcontainer so rebuilds don't force a re-login or lose session history.
+	"mounts": [
+		"source=claude-code-config-${devcontainerId},target=/home/node/.claude,type=volume"
+	],
+
+	// Features to add to the dev container. More info: https://containers.dev/features.
+	// "features": {},
+
+	// Use 'forwardPorts' to make a list of ports inside the container available locally.
+	"forwardPorts": [5173],
+	"portsAttributes": {
+		"5173": {
+			"label": "Vite Dev Server",
+			"onAutoForward": "openBrowser"
+		}
+	},
+
+	// Use 'postCreateCommand' to run commands after the container is created.
+	"postCreateCommand": "npm install",
+
+	// Fixes up volume ownership and symlinks ~/.claude.json into the persisted volume.
+	// Runs on every start (not just create) so it self-heals after any container recreation.
+	"postStartCommand": "bash .devcontainer/persist-claude-config.sh",
+
+	// Configure tool-specific properties.
+	// "customizations": {},
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+}
