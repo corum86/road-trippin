@@ -2,6 +2,9 @@
 
 A vacation-planning map app: one main location (home base) connected to your destinations by curvy arrows on an OpenStreetMap map. Click a destination to see route distance and driving time, main attractions, photos, and links. Everything is editable in the app, and the map can be exported as a PNG image.
 
+# Demo
+https://road-trippin-six.vercel.app/
+
 ## Run it
 
 ```powershell
