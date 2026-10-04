@@ -5,17 +5,25 @@ import {
   CURRENT_DATA_VERSION,
   type Destination,
   type DestinationDraft,
-  type ItineraryDay,
   type LatLng,
   type MainLocation,
   type Photo,
   type Rating,
   type RouteInfo,
+  type Trip,
   type TripStatus,
   type VacationMapData,
   type VisitLog,
 } from '../types/models';
-import { todayIso } from '../services/dates';
+import { diffDays, isIsoDate, todayIso } from '../services/dates';
+import {
+  autoPlanTrip,
+  clampTripEnd,
+  movePlanStop,
+  removeFromPlan,
+  sanitizeTrip,
+  tripDayCount,
+} from '../services/tripPlan';
 
 const DATA_URL = '/data/vacation-data.json';
 
@@ -30,30 +38,59 @@ function isValidVacationMapData(value: unknown): value is VacationMapData {
   );
 }
 
+/** v2 stored the trip as dated itinerary days plus a separate trip name. */
+interface LegacyTripFields {
+  tripName?: string;
+  itinerary?: Array<{ date?: string; stopIds?: string[] }>;
+}
+
+function tripFromLegacy(legacy: LegacyTripFields): Partial<Trip> | undefined {
+  const days = (legacy.itinerary ?? []).filter((day) => isIsoDate(day.date)) as Array<{
+    date: string;
+    stopIds?: string[];
+  }>;
+  if (days.length === 0) return legacy.tripName ? { name: legacy.tripName } : undefined;
+  const dates = days.map((day) => day.date).sort();
+  const startDate = dates[0];
+  const plan: string[][] = [];
+  for (const day of days) {
+    const index = diffDays(startDate, day.date);
+    plan[index] = [...(plan[index] ?? []), ...(day.stopIds ?? [])];
+  }
+  return {
+    name: legacy.tripName ?? '',
+    startDate,
+    endDate: dates[dates.length - 1],
+    // fill the gaps a sparse assignment leaves
+    plan: Array.from(plan, (ids) => ids ?? []),
+  };
+}
+
 /**
  * Bring data of any earlier version up to the current shape. Idempotent, so
  * it is safe to run on every entry point: seed fetch, localStorage
  * rehydration, file import and reset.
  */
 export function migrateVacationMapData(raw: VacationMapData): VacationMapData {
-  // v1 data lacks these fields entirely; read through a loose view of it
-  const loose = raw as Partial<VacationMapData>;
+  // older data lacks the newer fields entirely; read through a loose view of it
+  const loose = raw as Partial<VacationMapData> & LegacyTripFields;
+  const destinations: Destination[] = raw.destinations.map((d) => {
+    const dest = d as Partial<Destination> & Pick<Destination, 'id' | 'name' | 'location'>;
+    return {
+      ...dest,
+      attractions: dest.attractions ?? [],
+      photos: dest.photos ?? [],
+      links: dest.links ?? [],
+      status: dest.status === 'visited' ? 'visited' : 'planned',
+      favorite: dest.favorite === true,
+      visit: dest.visit ? { ...dest.visit, photos: dest.visit.photos ?? [] } : undefined,
+    };
+  });
   return {
-    ...raw,
     version: CURRENT_DATA_VERSION,
-    itinerary: Array.isArray(loose.itinerary) ? loose.itinerary : [],
-    destinations: raw.destinations.map((d) => {
-      const dest = d as Partial<Destination> & Pick<Destination, 'id' | 'name' | 'location'>;
-      return {
-        ...dest,
-        attractions: dest.attractions ?? [],
-        photos: dest.photos ?? [],
-        links: dest.links ?? [],
-        status: dest.status === 'visited' ? 'visited' : 'planned',
-        favorite: dest.favorite === true,
-        visit: dest.visit ? { ...dest.visit, photos: dest.visit.photos ?? [] } : undefined,
-      };
-    }),
+    mainLocation: raw.mainLocation,
+    destinations,
+    trip: sanitizeTrip(loose.trip ?? tripFromLegacy(loose), new Set(destinations.map((d) => d.id))),
   };
 }
 
@@ -85,7 +122,15 @@ interface MapDataState {
   addVisitPhoto: (id: string, photo: Photo) => void;
   removeVisitPhoto: (id: string, photoId: string) => void;
   updateVisit: (id: string, patch: Partial<VisitLog>) => void;
-  setItinerary: (days: ItineraryDay[]) => void;
+  setTripName: (name: string) => void;
+  /** set the trip's date range (end is clamped to the maximum trip length) */
+  setTripDates: (startDate: string, endDate: string) => void;
+  /** put a destination on a day (before position `beforeIndex`, or last), or unschedule it with null */
+  moveStop: (id: string, dayIndex: number | null, beforeIndex?: number) => void;
+  /** spread the unscheduled destinations over the trip; returns how many were placed */
+  autoPlan: () => number;
+  /** replace the whole plan, e.g. to undo an auto-plan */
+  setPlan: (plan: string[][]) => void;
   replaceAllData: (data: VacationMapData) => void;
   resetToBundledDefaults: () => Promise<void>;
 }
@@ -93,6 +138,12 @@ interface MapDataState {
 export const useMapDataStore = create<MapDataState>()(
   persist(
     (set, get) => {
+      function updateTrip(fn: (trip: Trip) => Trip) {
+        const current = get().data;
+        if (!current) return;
+        set({ data: { ...current, trip: fn(current.trip) } });
+      }
+
       function mapDestination(id: string, fn: (d: Destination) => Destination) {
         const current = get().data;
         if (!current) return;
@@ -172,10 +223,7 @@ export const useMapDataStore = create<MapDataState>()(
             data: {
               ...current,
               destinations: current.destinations.filter((d) => d.id !== id),
-              itinerary: current.itinerary.map((day) => ({
-                ...day,
-                stopIds: day.stopIds.filter((stopId) => stopId !== id),
-              })),
+              trip: { ...current.trip, plan: removeFromPlan(current.trip.plan, id) },
             },
             selectedDestinationId: get().selectedDestinationId === id ? null : get().selectedDestinationId,
           });
@@ -214,11 +262,32 @@ export const useMapDataStore = create<MapDataState>()(
         updateVisit: (id, patch) =>
           mapDestination(id, (d) => ({ ...d, visit: { ...ensureVisit(d), ...patch } })),
 
-        setItinerary: (days) => {
+        setTripName: (name) => updateTrip((trip) => ({ ...trip, name })),
+
+        setTripDates: (startDate, endDate) =>
+          updateTrip((trip) => {
+            const next = { ...trip, startDate, endDate: clampTripEnd(startDate, endDate) };
+            // days are derived from the range; the plan only ever grows, so
+            // shortening and re-extending the trip brings its stops back
+            const plan = Array.from(
+              { length: Math.max(trip.plan.length, tripDayCount(next)) },
+              (_, i) => trip.plan[i] ?? [],
+            );
+            return { ...next, plan };
+          }),
+
+        moveStop: (id, dayIndex, beforeIndex) =>
+          updateTrip((trip) => ({ ...trip, plan: movePlanStop(trip.plan, id, dayIndex, beforeIndex) })),
+
+        autoPlan: () => {
           const current = get().data;
-          if (!current) return;
-          set({ data: { ...current, itinerary: days } });
+          if (!current) return 0;
+          const { plan, count } = autoPlanTrip(current.trip, current.mainLocation, current.destinations);
+          if (count > 0) set({ data: { ...current, trip: { ...current.trip, plan } } });
+          return count;
         },
+
+        setPlan: (plan) => updateTrip((trip) => ({ ...trip, plan })),
 
         replaceAllData: (data) =>
           set({ data: migrateVacationMapData(data), selectedDestinationId: null, loadError: null }),

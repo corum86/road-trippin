@@ -338,3 +338,8 @@
 .vm-mobile-toast-raised {
   bottom: 24px;
 }
+
+/* on the Trip screen the not-scheduled tray occupies the toast's usual spot */
+.vm-mobile-toast-above-tray {
+  bottom: 108px;
+}

@@ -259,24 +259,102 @@
 }
 
 /* Trip */
+.vm-desktop-panel .vm-trip-actions {
+  padding: 12px 20px 0;
+}
+
+.vm-desktop-panel .vm-trip-dates-btn,
+.vm-desktop-panel .vm-trip-autoplan-btn {
+  height: 44px;
+  border-radius: 22px;
+}
+
 .vm-desktop-panel .vm-trip-subline {
-  padding: 0 24px;
+  padding: 14px 24px 0;
 }
 
 .vm-desktop-panel .vm-progress {
-  margin: 12px 24px 22px;
+  margin: 8px 24px 18px;
 }
 
 .vm-desktop-panel .vm-timeline {
   padding: 0 20px;
 }
 
-.vm-desktop-panel .vm-day-rail {
-  width: 48px;
+.vm-desktop-panel .vm-stop-card {
+  padding: 6px 4px 6px 6px;
 }
 
-.vm-desktop-panel .vm-day-circle-stops {
-  border: 1px solid var(--border);
+.vm-desktop-panel .vm-trip-scroll-with-tray {
+  padding-bottom: 110px;
+}
+
+.vm-desktop-panel .vm-trip-tray {
+  padding-bottom: 14px;
+}
+
+.vm-desktop-panel .vm-trip-tray-label,
+.vm-desktop-panel .vm-trip-tray-chips {
+  padding: 0 20px;
+}
+
+.vm-desktop-panel .vm-trip-chip,
+.vm-desktop-panel .vm-trip-tray-empty {
+  height: 36px;
+}
+
+/* trip dates popover, anchored under the date button in the side panel */
+.vm-sheet-popover.vm-dates {
+  left: 108px;
+  top: 136px;
+  padding-top: 18px;
+}
+
+.vm-sheet-popover .vm-sheet-title {
+  padding-top: 0;
+  font-size: 18px;
+}
+
+.vm-sheet-popover .vm-sheet-hint {
+  padding-bottom: 12px;
+}
+
+.vm-sheet-popover .vm-dates-cell {
+  height: 42px;
+}
+
+.vm-sheet-popover .vm-dates-day {
+  width: 38px;
+  height: 38px;
+}
+
+/* add-to-day dialog */
+.vm-sheet-dialog .vm-add-to-day-header {
+  padding: 22px 24px 10px;
+}
+
+.vm-sheet-dialog .vm-add-to-day-list {
+  padding: 0 14px;
+  scrollbar-width: thin;
+}
+
+.vm-sheet-dialog .vm-add-to-day-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 20px 18px;
+}
+
+.vm-sheet-dialog .vm-add-to-day-done {
+  width: auto;
+  height: 42px;
+  padding: 0 26px;
+  border-radius: 21px;
+  font-size: 14px;
+  transition: background-color 0.15s ease;
+}
+
+.vm-sheet-dialog .vm-add-to-day-done:hover {
+  background: #0a7973;
 }
 
 /* Settings */
@@ -518,6 +596,16 @@
 
 .vm-desktop-detail .vm-detail-title {
   font-size: 24px;
+}
+
+.vm-desktop-detail .vm-day-chips {
+  margin: 0 -22px;
+  padding: 0 22px;
+}
+
+.vm-desktop-detail .vm-day-chip {
+  height: 36px;
+  border-radius: 18px;
 }
 
 .vm-desktop-detail .vm-photo-thumb-btn {

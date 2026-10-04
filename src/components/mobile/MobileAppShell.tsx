@@ -15,6 +15,9 @@ import { SettingsScreen } from '../screens/SettingsScreen';
 import { DestinationDetailScreen } from '../screens/DestinationDetailScreen';
 import { LocationFormScreen } from '../screens/LocationFormScreen';
 import { PickOnMapScreen } from './PickOnMapScreen';
+import { TripDatesPicker } from '../screens/TripDatesPicker';
+import { AddToDaySheet } from '../screens/AddToDaySheet';
+import { dayIndexByDestination } from '../../services/tripPlan';
 import { ConfirmDeleteDialog } from '../ui/ConfirmDeleteDialog';
 import { OffscreenMapExport } from './OffscreenMapExport';
 import { Toast } from '../ui/Toast';
@@ -29,7 +32,13 @@ type Layer =
   | { kind: 'destination-form'; id: string | null }
   | { kind: 'home-form' }
   | { kind: 'pick' }
-  | { kind: 'confirm-delete'; id: string };
+  | { kind: 'confirm-delete'; id: string }
+  | { kind: 'trip-dates' }
+  | { kind: 'add-to-day'; day: number };
+
+// sheets slide over the current tab, bottom nav included; everything else is
+// a full-screen layer that replaces the nav
+const SHEET_LAYERS: ReadonlyArray<Layer['kind']> = ['trip-dates', 'add-to-day'];
 
 const TABS: Array<{ id: Tab; icon: string; labelKey: TranslationKey }> = [
   { id: 'map', icon: 'map', labelKey: 'tabs.map' },
@@ -49,6 +58,7 @@ export function MobileAppShell() {
   const updateDestination = useMapDataStore((s) => s.updateDestination);
   const removeDestination = useMapDataStore((s) => s.removeDestination);
   const setMainLocation = useMapDataStore((s) => s.setMainLocation);
+  const setTripDates = useMapDataStore((s) => s.setTripDates);
 
   const [tab, setTab] = useState<Tab>('map');
   const [displayMode, setDisplayMode] = useState<RouteDisplayMode>('arrows');
@@ -60,7 +70,7 @@ export function MobileAppShell() {
   });
   // the options of the export in flight, captured when it started
   const [exportJob, setExportJob] = useState<ExportOptions | null>(null);
-  const { toast, showToast } = useToast();
+  const { toast, showToast, dismissToast } = useToast();
   const { stack, push, back, replaceTop } = useLayerStack<Layer>();
 
   useEffect(() => {
@@ -103,6 +113,7 @@ export function MobileAppShell() {
           <DestinationDetailScreen
             destination={destination}
             home={data.mainLocation}
+            trip={data.trip}
             variant="mobile"
             onBack={() => back()}
             onEdit={() => {
@@ -168,6 +179,21 @@ export function MobileAppShell() {
             onCancel={() => back()}
           />
         );
+      case 'trip-dates':
+        return (
+          <TripDatesPicker
+            variant="mobile"
+            trip={data.trip}
+            onClose={() => back()}
+            onSave={(start, end) => {
+              setTripDates(start, end);
+              back();
+              showToast(t('trip.datesSaved'));
+            }}
+          />
+        );
+      case 'add-to-day':
+        return <AddToDaySheet variant="mobile" data={data} dayIndex={layer.day} onClose={() => back()} />;
       case 'confirm-delete': {
         const destination = data.destinations.find((d) => d.id === layer.id);
         if (!destination) return null;
@@ -187,7 +213,11 @@ export function MobileAppShell() {
     }
   }
 
-  const onMainScreen = stack.length === 0;
+  const onMainScreen = stack.every((layer) => SHEET_LAYERS.includes(layer.kind));
+  // the Trip screen's not-scheduled tray sits where the toast would
+  const trayVisible =
+    tab === 'trip' && onMainScreen && dayIndexByDestination(data.trip).size < data.destinations.length;
+  const toastClass = !onMainScreen ? 'vm-mobile-toast-raised' : trayVisible ? 'vm-mobile-toast-above-tray' : undefined;
 
   return (
     <div className="vm-mobile-shell">
@@ -202,7 +232,15 @@ export function MobileAppShell() {
           />
         )}
         {tab === 'places' && <PlacesScreen data={data} variant="mobile" onOpenDetail={openDetail} onAdd={openAdd} />}
-        {tab === 'trip' && <TripScreen data={data} onOpenDetail={openDetail} />}
+        {tab === 'trip' && (
+          <TripScreen
+            data={data}
+            onOpenDetail={openDetail}
+            onOpenDates={() => push({ kind: 'trip-dates' })}
+            onAddToDay={(day) => push({ kind: 'add-to-day', day })}
+            onToast={showToast}
+          />
+        )}
         {tab === 'settings' && (
           <SettingsScreen
             data={data}
@@ -240,7 +278,7 @@ export function MobileAppShell() {
           </div>
         ))}
 
-        {toast && <Toast key={toast.id} toast={toast} className={onMainScreen ? undefined : 'vm-mobile-toast-raised'} />}
+        {toast && <Toast key={toast.id} toast={toast} onDismiss={dismissToast} className={toastClass} />}
       </div>
 
       {onMainScreen && (

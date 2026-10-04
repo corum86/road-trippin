@@ -36,7 +36,7 @@ export function PlacesScreen({ data, variant, onOpenDetail, onAdd, selectedId, h
   const visible = data.destinations.filter(active.test);
   const isDesktop = variant === 'desktop';
   const { dateRange } = tripSummary(data, lang);
-  const eyebrow = [data.tripName, dateRange].filter(Boolean).join(' · ');
+  const eyebrow = [data.trip.name, dateRange].filter(Boolean).join(' · ');
 
   return (
     <div className="vm-screen">

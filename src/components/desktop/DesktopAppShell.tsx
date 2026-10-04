@@ -14,6 +14,8 @@ import { TripScreen } from '../screens/TripScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { DestinationDetailScreen } from '../screens/DestinationDetailScreen';
 import { LocationFormScreen } from '../screens/LocationFormScreen';
+import { TripDatesPicker } from '../screens/TripDatesPicker';
+import { AddToDaySheet } from '../screens/AddToDaySheet';
 import { ConfirmDeleteDialog } from '../ui/ConfirmDeleteDialog';
 import { Toast } from '../ui/Toast';
 import { useToast } from '../ui/useToast';
@@ -27,6 +29,9 @@ type PanelTab = Exclude<DesktopTab, 'map'>;
 
 type Floating = { kind: 'detail' } | { kind: 'destination-form'; id: string | null } | { kind: 'home-form' };
 
+/** Trip planning overlays: the date-range popover and the add-to-day dialog. */
+type TripOverlay = { kind: 'dates' } | { kind: 'add-to-day'; day: number };
+
 // Fit padding keeps pins clear of the map controls (top), attribution
 // (bottom), and the floating Detail/Form panel (right) when it is open.
 const FIT_PADDING: MapPadding = { top: 120, right: 140, bottom: 70, left: 90 };
@@ -39,9 +44,9 @@ const PANEL_SETTLE_MS = 220;
 
 const canUseAi = !!import.meta.env.VITE_GEMINI_API_KEY;
 
-/** Something with its own Esc handling (photo lightbox, AI stepper) is open. */
+/** Something with its own Esc handling (photo lightbox, AI stepper, a drag in progress) is active. */
 function hasOwnOverlayOpen(): boolean {
-  return document.querySelector('.vm-lightbox-backdrop, .vm-stepper-backdrop') !== null;
+  return document.querySelector('.vm-lightbox-backdrop, .vm-stepper-backdrop, .vm-trip-dragging') !== null;
 }
 
 /**
@@ -61,6 +66,7 @@ export function DesktopAppShell() {
   const addDestination = useMapDataStore((s) => s.addDestination);
   const updateDestination = useMapDataStore((s) => s.updateDestination);
   const removeDestination = useMapDataStore((s) => s.removeDestination);
+  const setTripDates = useMapDataStore((s) => s.setTripDates);
 
   const [tab, setTab] = useState<DesktopTab>('places');
   // keeps showing while the panel collapses for the Map tab
@@ -69,6 +75,7 @@ export function DesktopAppShell() {
   const [picking, setPicking] = useState(false);
   const [pickedLocation, setPickedLocation] = useState<LatLng | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [tripOverlay, setTripOverlay] = useState<TripOverlay | null>(null);
   const [displayMode, setDisplayMode] = useState<RouteDisplayMode>('arrows');
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     aspect: 'free',
@@ -77,7 +84,7 @@ export function DesktopAppShell() {
   });
   const [exporting, setExporting] = useState(false);
   const [stageSize, setStageSize] = useState({ width: 0, height: 0 });
-  const { toast, showToast } = useToast();
+  const { toast, showToast, dismissToast } = useToast();
 
   const stageRef = useRef<HTMLDivElement>(null);
   const mapExportRef = useRef<HTMLDivElement>(null);
@@ -240,7 +247,16 @@ export function DesktopAppShell() {
           />
         );
       case 'trip':
-        return <TripScreen data={data} selectedId={detailOpen ? selectedId : null} onOpenDetail={openDetail} />;
+        return (
+          <TripScreen
+            data={data}
+            selectedId={detailOpen ? selectedId : null}
+            onOpenDetail={openDetail}
+            onOpenDates={() => setTripOverlay({ kind: 'dates' })}
+            onAddToDay={(day) => setTripOverlay({ kind: 'add-to-day', day })}
+            onToast={showToast}
+          />
+        );
       case 'settings':
         return (
           <SettingsScreen
@@ -265,6 +281,7 @@ export function DesktopAppShell() {
           key={selected.id}
           destination={selected}
           home={data.mainLocation}
+          trip={data.trip}
           variant="desktop"
           onBack={closeDetail}
           onEdit={() => {
@@ -383,8 +400,29 @@ export function DesktopAppShell() {
 
         {renderFloating()}
 
-        {toast && <Toast key={toast.id} toast={toast} className="vm-desktop-toast" />}
+        {toast && <Toast key={toast.id} toast={toast} onDismiss={dismissToast} className="vm-desktop-toast" />}
       </main>
+
+      {tripOverlay?.kind === 'dates' && (
+        <TripDatesPicker
+          variant="desktop"
+          trip={data.trip}
+          onClose={() => setTripOverlay(null)}
+          onSave={(start, end) => {
+            setTripDates(start, end);
+            setTripOverlay(null);
+            showToast(t('trip.datesSaved'));
+          }}
+        />
+      )}
+      {tripOverlay?.kind === 'add-to-day' && (
+        <AddToDaySheet
+          variant="desktop"
+          data={data}
+          dayIndex={tripOverlay.day}
+          onClose={() => setTripOverlay(null)}
+        />
+      )}
 
       {confirmTarget && (
         <ConfirmDeleteDialog

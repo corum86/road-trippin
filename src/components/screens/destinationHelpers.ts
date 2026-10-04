@@ -3,6 +3,7 @@ import type { TranslateFn } from '../../i18n/context';
 import type { Destination, MainLocation, Photo, VacationMapData } from '../../types/models';
 import type { Lang } from '../../i18n/translations';
 import { formatDateRange } from '../../services/dates';
+import { tripDayCount } from '../../services/tripPlan';
 import { estimateFromStraightLine, fetchRoute } from '../../services/osrmService';
 import { formatRouteSummary } from '../../services/routeFormat';
 import { useMapDataStore } from '../../store/mapDataStore';
@@ -53,11 +54,16 @@ export function useEnsureRoute(dest: Destination | undefined, home: MainLocation
 
 /** Trip-wide numbers shared by the Trip screen and the Places header. */
 export function tripSummary(data: VacationMapData, lang: Lang) {
-  const days = [...data.itinerary].sort((a, b) => a.date.localeCompare(b.date));
+  const { trip, destinations } = data;
   return {
-    days,
-    total: data.destinations.length,
-    visited: data.destinations.filter((d) => d.status === 'visited').length,
-    dateRange: days.length > 0 ? formatDateRange(days[0].date, days[days.length - 1].date, lang) : '',
+    dayCount: tripDayCount(trip),
+    total: destinations.length,
+    visited: destinations.filter((d) => d.status === 'visited').length,
+    dateRange: formatDateRange(trip.startDate, trip.endDate, lang),
   };
+}
+
+/** "6 days" / "1 day" */
+export function dayCountLabel(count: number, t: TranslateFn): string {
+  return count === 1 ? t('trip.oneDay') : t('trip.nDays', { n: count });
 }

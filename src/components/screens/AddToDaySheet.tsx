@@ -1,0 +1,80 @@
+import { useMapDataStore } from '../../store/mapDataStore';
+import type { VacationMapData } from '../../types/models';
+import { useI18n } from '../../i18n/context';
+import { formatDayLabel } from '../../services/dates';
+import { dayIndexByDestination, tripDayDate } from '../../services/tripPlan';
+import { Icon } from '../ui/Icon';
+import { Sheet } from '../ui/Sheet';
+import { routeText } from './destinationHelpers';
+
+interface AddToDaySheetProps {
+  /** mobile: bottom sheet; desktop: centred dialog */
+  variant: 'mobile' | 'desktop';
+  data: VacationMapData;
+  dayIndex: number;
+  onClose: () => void;
+}
+
+/**
+ * Checklist of every destination for one trip day. Ticking applies at once:
+ * a place on another day moves here, unticking unschedules it.
+ */
+export function AddToDaySheet({ variant, data, dayIndex, onClose }: AddToDaySheetProps) {
+  const { t, lang } = useI18n();
+  const moveStop = useMapDataStore((s) => s.moveStop);
+  const dayOf = dayIndexByDestination(data.trip);
+
+  return (
+    <Sheet
+      layout={variant === 'desktop' ? 'dialog' : 'bottom'}
+      onClose={onClose}
+      labelledBy="vm-add-to-day-title"
+      className="vm-add-to-day"
+    >
+      <div className="vm-add-to-day-header">
+        <h2 id="vm-add-to-day-title" className="vm-sheet-title">
+          {t('trip.addToDay', { n: dayIndex + 1 })}
+        </h2>
+        <p className="vm-sheet-hint">{formatDayLabel(tripDayDate(data.trip, dayIndex), lang)}</p>
+      </div>
+
+      <div className="vm-add-to-day-list">
+        {data.destinations.map((dest) => {
+          const currentDay = dayOf.get(dest.id);
+          const onThisDay = currentDay === dayIndex;
+          return (
+            <button
+              key={dest.id}
+              type="button"
+              role="checkbox"
+              aria-checked={onThisDay}
+              className="vm-add-to-day-row"
+              onClick={() => moveStop(dest.id, onThisDay ? null : dayIndex)}
+            >
+              <Icon
+                name={onThisDay ? 'check_box' : 'check_box_outline_blank'}
+                size={24}
+                filled={onThisDay}
+                className={onThisDay ? 'vm-text-teal' : 'vm-text-faint'}
+              />
+              <span className="vm-add-to-day-text">
+                <span className="vm-add-to-day-name">{dest.name}</span>
+                <span className="vm-meta">{routeText(dest, data.mainLocation, t)}</span>
+              </span>
+              {currentDay !== undefined && !onThisDay && (
+                <span className="vm-add-to-day-tag">{t('trip.onDay', { n: currentDay + 1 })}</span>
+              )}
+            </button>
+          );
+        })}
+        {data.destinations.length === 0 && <div className="vm-empty">{t('places.empty')}</div>}
+      </div>
+
+      <div className="vm-add-to-day-footer">
+        <button type="button" className="vm-save-btn vm-add-to-day-done" onClick={onClose}>
+          {t('common.done')}
+        </button>
+      </div>
+    </Sheet>
+  );
+}

@@ -1,9 +1,10 @@
 import { useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { useMapDataStore } from '../../store/mapDataStore';
-import type { Destination, MainLocation, Rating, TripStatus } from '../../types/models';
+import type { Destination, MainLocation, Rating, Trip, TripStatus } from '../../types/models';
 import { useI18n } from '../../i18n/context';
-import { formatDayLabel } from '../../services/dates';
+import { formatDayLabel, formatShortDate } from '../../services/dates';
+import { dayIndexByDestination, tripDayCount, tripDayDate } from '../../services/tripPlan';
 import { estimateSuffix, formatDistance, formatDuration } from '../../services/routeFormat';
 import { fileToResizedDataUrl } from '../../services/imageResize';
 import { translateDestinationContent } from '../../services/geminiService';
@@ -16,6 +17,7 @@ import { allPhotos, useEnsureRoute } from './destinationHelpers';
 interface DestinationDetailScreenProps {
   destination: Destination;
   home: MainLocation;
+  trip: Trip;
   /** mobile: full-screen layer; desktop: floating panel over the map */
   variant: 'mobile' | 'desktop';
   /** back (mobile) or close (desktop) */
@@ -37,6 +39,7 @@ const canTranslate = !!import.meta.env.VITE_GEMINI_API_KEY;
 export function DestinationDetailScreen({
   destination,
   home,
+  trip,
   variant,
   onBack,
   onEdit,
@@ -48,6 +51,7 @@ export function DestinationDetailScreen({
   const setStatus = useMapDataStore((s) => s.setStatus);
   const setRating = useMapDataStore((s) => s.setRating);
   const updateVisit = useMapDataStore((s) => s.updateVisit);
+  const moveStop = useMapDataStore((s) => s.moveStop);
   const addVisitPhoto = useMapDataStore((s) => s.addVisitPhoto);
   const removeVisitPhoto = useMapDataStore((s) => s.removeVisitPhoto);
   const updateDestination = useMapDataStore((s) => s.updateDestination);
@@ -58,6 +62,7 @@ export function DestinationDetailScreen({
   const { routeInfo, visit } = destination;
   const visited = destination.status === 'visited';
   const isDesktop = variant === 'desktop';
+  const scheduledDay = dayIndexByDestination(trip).get(destination.id);
   const photos = allPhotos(destination);
   const hero = photos[0];
 
@@ -193,6 +198,28 @@ export function DestinationDetailScreen({
             );
           })}
         </div>
+
+        <section className="vm-detail-section">
+          <SectionLabel>{t('detail.tripDay')}</SectionLabel>
+          {/* tapping a day moves the place there; tapping its current day unschedules it */}
+          <div className="vm-day-chips" role="group" aria-label={t('detail.tripDay')}>
+            {Array.from({ length: tripDayCount(trip) }, (_, day) => {
+              const active = scheduledDay === day;
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  className={`vm-day-chip${active ? ' vm-day-chip-active' : ''}`}
+                  aria-pressed={active}
+                  onClick={() => moveStop(destination.id, active ? null : day)}
+                >
+                  {t('trip.onDay', { n: day + 1 })}
+                  <span className="vm-day-chip-date">{formatShortDate(tripDayDate(trip, day), lang)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
         {visited && (
           <div className="vm-card vm-visit-card">

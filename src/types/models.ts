@@ -60,20 +60,27 @@ export interface MainLocation {
   location: LatLng;
 }
 
-export interface ItineraryDay {
-  id: string;
+export interface Trip {
+  /** empty until the traveller names it */
+  name: string;
   /** ISO date (YYYY-MM-DD) */
-  date: string;
-  stopIds: string[];
-  note?: string;
+  startDate: string;
+  /** ISO date (YYYY-MM-DD), inclusive */
+  endDate: string;
+  /**
+   * plan[dayIndex] = ordered destination ids for that day. Indexed by day
+   * rather than date, so moving the trip keeps the plan. It may be longer
+   * than the date range: days cut off by shortening the trip are kept (their
+   * stops show as unscheduled) and come back if the trip is extended again.
+   */
+  plan: string[][];
 }
 
-export const CURRENT_DATA_VERSION = 2;
+export const CURRENT_DATA_VERSION = 3;
 
 export interface VacationMapData {
   version: number;
-  tripName?: string;
   mainLocation: MainLocation;
   destinations: Destination[];
-  itinerary: ItineraryDay[];
+  trip: Trip;
 }
