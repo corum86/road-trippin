@@ -275,11 +275,13 @@ Mobile screenshots are captured at 2x (824×1784) from the prototype in `screens
 - `01-map.png` — Map tab, nothing selected (carousel)
 - `02-map-selected.png` — Map tab, Syvota selected (bottom card, teal arrow/pin)
 - `03-places.png` — Places tab with filters + FAB
-- `04-trip.png` — Trip tab (itinerary timeline)
+- `04-trip.png` — Trip tab: dates, auto-plan, days, not-scheduled tray
 - `05-settings.png` — Settings (home base, language, export)
 - `06-detail.png` — Destination detail, visited, top of the scroll
 - `07-form.png` — Add destination form
 - `08-pick-on-map.png` — Pick-on-map mode
+- `09-trip-dates.png` — Trip date picker sheet
+- `10-add-to-day.png` — Add-to-day sheet
 
 ---
 
@@ -360,6 +362,8 @@ Same components as mobile with desktop spacing (outer padding 24, titles 26/700 
 - `screenshots/desktop-05-map-full.png` — Map tab (panel hidden)
 - `screenshots/desktop-06-form.png` — Add destination floating form
 - `screenshots/desktop-07-pick-on-map.png` — Picking with the form open
+- `screenshots/desktop-08-trip-dates.png` — Date picker popover
+- `screenshots/desktop-09-add-to-day.png` — Add-to-day dialog
 
 ## Desktop implementation notes
 - `AppShell.tsx` becomes `Rail + (Panel?) + MapStage`. `DestinationListSidebar` → Places panel, `DestinationDetailPanel` → floating Detail, `DestinationEditForm` / `MainLocationEditForm` → floating Form.
@@ -370,6 +374,113 @@ Same components as mobile with desktop spacing (outer padding 24, titles 26/700 
   - Data import/export → Settings.
   - Fullscreen → the Map rail item (panel hidden). The browser fullscreen API is optional.
   - AI search → not designed; suggest adding it as a button in the Places header.
+
+---
+
+# Trip planning (mobile 1a + desktop 2a)
+Replaces the static itinerary from the earlier sections. Same tokens and components. Screenshots: `04-trip`, `09-trip-dates`, `10-add-to-day`, `06-detail` (day chips), `desktop-03-trip`, `desktop-08-trip-dates`, `desktop-09-add-to-day`.
+
+## Data model (supersedes `ItineraryDay`)
+```ts
+interface Trip { name: string; startDate: string /* ISO */; endDate: string; plan: string[][] /* plan[dayIndex] = ordered destination ids */ }
+// VacationMapData.trip: Trip
+```
+- Days are **derived** from the date range (`N = end − start + 1`, max 30). Plan is stored by day index, so moving the trip keeps the plan.
+- If a range change leaves `plan` longer than N, the extra days' stops count as unscheduled. Keep the array so extending again restores them.
+- A destination is on at most one day. "Unscheduled" = destinations in no `plan[0..N-1]`.
+- Deleting a destination removes it from `plan`.
+- Store actions: `setTripDates(start, end)`, `moveStop(id, dayIndex | null, beforeIndex?)`, `autoPlan()`, `setPlan(plan)` (for undo).
+- Dates are formatted with `Intl` (`en-GB` / `el-GR`, `timeZone:'UTC'`): day rows `{weekday:'short', day, month:'short'}` → "Mon 13 Jul". Range "13–18 Jul 2026" (cross-month "30 Jun–4 Jul 2026").
+
+## Trip tab (mobile, panel on desktop)
+- **Header**: trip name. Below it a row (gap 8, padding 0 16 / 0 20 desktop) with:
+  - **Date button** (flex 1): 48h (44 desktop), white, border, pill. `edit_calendar` teal + range 14/600 + `expand_more`. Opens the date picker.
+  - **Auto-plan** button: pill, bg `#fde9e0`, coral, `auto_awesome` + "Auto-plan". When nothing is unscheduled it's disabled: bg `#f4eee5`, text `#c9b89e`.
+- Subline "6 days · 2 of 5 visited" 13 muted, then the progress bar.
+- **Day row**: 44px day circle + connector (as before). Header row 44h:
+  - Date 14/600.
+  - Count "1 stop" / "2 stops" 12 muted.
+  - **+** button 36px round, white, border, teal `add`. Opens the add-to-day sheet.
+- **Stop card**: white, border, radius 14, padding 8/6 (desktop 6), gap 8, `draggable`. Contents in order:
+  - `drag_indicator` `#c9b89e` (cursor grab).
+  - Filled status icon.
+  - Name 14/600 (ellipsis) and route 12 muted.
+  - **×** remove-from-day button 36px, `#c9b89e`, hover bg `#f4eee5`.
+  - Clicking the card opens Detail.
+- **Empty day**: dashed 1.5px `#d9cbb5` box, min-height 52, radius 14, "Free day — tap + or drop a place here" 13 muted. Clicking it opens the sheet.
+- **Not-scheduled tray**:
+  - Placement: mobile = pinned to the bottom of the Trip screen above the nav (absolute, bg `#fbf8f3`, top border, shadow `0 -6px 20px rgba(120,72,20,.08)`). Desktop = `position: sticky; bottom:0` inside the panel.
+  - Label: `inventory_2` + "Not scheduled (3) · drag onto a day" 12/700 muted.
+  - Chips: horizontal scroll. 44h (36 desktop), white, border, pill. `drag_indicator` + status dot + name 13/600. Draggable; clicking a chip opens Detail.
+  - The tray is shown when there are unscheduled places **or while dragging**, when it becomes a drop target that unschedules ("Drop here to unschedule").
+- **Scroll padding**: on mobile the scroll area adds 116px bottom padding while the tray is visible.
+
+## Drag & drop
+- Sources: stop cards and tray chips. Targets: each day row (append), each stop card (insert before/after by pointer Y vs card midpoint), and the tray (unschedule).
+- **Feedback**:
+  - Dragged item opacity .4.
+  - Hovered day's stop zone bg `#e3f1ef` and its empty-day dashed border turns teal.
+  - Insertion line: 3px teal (`box-shadow: 0 -3px 0 0 #0c8a83` on the card after the gap, or `0 3px` under the last card).
+  - Hovered tray bg `#e3f1ef`.
+- Moving within the same day adjusts the index for the removed item.
+- **Implementation**: the prototype uses HTML5 DnD (mouse). In production use **dnd-kit** (or similar) with a pointer + touch sensor: **long-press 250ms to start on touch**, keyboard sensor for a11y, auto-scroll near the edges, and a drag overlay that follows the finger.
+
+## Add-to-day sheet
+- **Mobile**: bottom sheet, z above nav. Scrim `rgba(15,12,8,.45)`, radius 28 top, 36×4 handle `#d9cbb5`, max-height 80%.
+- **Desktop**: centered dialog 420w, radius 24, scrim .35.
+- Title "Add to day 3" 20/700, date subline.
+- Rows list **all** destinations in list order, min-height 56, radius 14, hover `#f4eee5`:
+  - `check_box` (teal, FILL 1) / `check_box_outline_blank` (`#c9b89e`).
+  - Name 15/600 and route.
+  - Tag "Day 5" (`#f4eee5` pill, 11/600) when the place is on another day.
+- Ticking toggles immediately. A place already on another day is **moved** here, and unticking unschedules it.
+- **Done**: full-width 48h teal pill on mobile, right-aligned 42h pill on desktop. Closes the sheet. Scrim click and Esc also close it.
+
+## Date picker
+- **Mobile**: bottom sheet (same chrome). **Desktop**: popover 360w anchored under the date button (left 108, top 136 in the 1440 layout), radius 22, border, shadow `0 12px 40px rgba(120,72,20,.25)`. A transparent click-catcher closes it, and so does Esc.
+- Title "Trip dates", hint "Tap the first and last day of your trip".
+- **Start / End fields**: 2-column grid, white, radius 14, 1.5px border.
+  - The field the next tap will set is teal `#0c8a83`, the other `#efe4d2`.
+  - Label 11/600 uppercase muted, value 15/700 "Mon 13 Jul" or "—".
+- **Month header**: "July 2026" 15/700 with `chevron_left` / `chevron_right` 40px buttons.
+- **Grid**: weeks start **Monday**, weekday letters 12/600 muted, cells 44h (42 desktop).
+  - Day number in a 40px circle (38 desktop), 14/500.
+  - Endpoints: teal circle, white 700.
+  - In-range band `#e3f1ef` across the cells, rounded 22px at the start and end.
+  - Today: 1px `#c9b89e` ring.
+- **Selection logic**:
+  - First tap sets the start and clears the end.
+  - Second tap sets the end. If it is before the start, it replaces the start instead.
+  - A tap after both are set starts over.
+  - Saving with only a start creates a 1-day trip.
+- **Footer**: "6 days" 14/600, then Cancel (teal text) and **Save** (teal pill; `#c9b89e` until a start is picked). Save shows the toast "Trip dates saved".
+
+## Destination detail: "Trip day" chips
+- New section between the status control and the visit log, labeled "TRIP DAY".
+- Horizontally scrolling chips that bleed to the screen edges: `margin: 0 -20px; padding: 0 20px` (22 on desktop). One chip per trip day: "**Day 2** 14 Jul" (700 + 500 at .8 opacity).
+- Chip sizes: 44h mobile, 36h desktop. Pill, 13px. Active: teal bg/border, white text. Inactive: white, border `#efe4d2`.
+- Tapping a chip moves the place to that day. Tapping the active chip unschedules it.
+
+## Auto-plan
+1. Take the unscheduled destinations and sort them by compass bearing from the home base.
+2. Candidate days are all days except day 1 (arrival) when the trip has more than 2 days.
+3. For each place in order:
+   - If it is within 25° bearing and 40 km of the previous place, and that day has fewer than 2 stops, put it on the same day.
+   - Otherwise put it on the candidate day with the fewest stops (earliest on ties).
+4. Apply at once, then show the toast "Spread 3 places over your days" with an **Undo** action (5s, teal `#2dd4c4` text button) that restores the previous plan.
+
+Seed result: Nikopolis + Preveza → Wed 15 Jul, Lefkada → Fri 17 Jul. Optional improvement: weigh by OSRM drive time and cap the day total.
+
+## Toast with action
+Same toast as before, plus an optional trailing text button (13/700, `#2dd4c4`). On mobile the toast sits above the tray when the tray is visible.
+
+## New i18n keys (EN / EL)
+`trip.datesTitle` Trip dates / Ημερομηνίες ταξιδιού · `trip.tapFirstLast` Tap the first and last day of your trip / Πατήστε την πρώτη και την τελευταία ημέρα του ταξιδιού · `trip.start` Start / Έναρξη · `trip.end` End / Λήξη · `trip.nDays` {n} days / {n} ημέρες · `trip.oneDay` 1 day / 1 ημέρα · `trip.autoPlan` Auto-plan / Αυτόματο πλάνο · `trip.autoPlanned` Spread {n} places over your days / Μοιράστηκαν {n} μέρη στις ημέρες σας · `common.undo` Undo / Αναίρεση · `trip.addToDay` Add to day {n} / Προσθήκη στην ημέρα {n} · `common.done` Done / Τέλος · `trip.onDay` Day {n} / Ημέρα {n} · `trip.unschedTray` Not scheduled ({n}) · drag onto a day / Χωρίς ημέρα ({n}) · σύρετε σε μια ημέρα · `trip.dropToUnschedule` Drop here to unschedule / Αφήστε εδώ για αφαίρεση από ημέρα · `trip.dropHere` Free day — tap + or drop a place here / Ελεύθερη ημέρα — πατήστε + ή αφήστε ένα μέρος εδώ · `detail.tripDay` Trip day / Ημέρα ταξιδιού · `trip.nStops` {n} stops / {n} στάσεις · `trip.oneStop` 1 stop / 1 στάση · `trip.removeFromDay` Remove from day / Αφαίρεση από την ημέρα · `trip.datesSaved` Trip dates saved / Οι ημερομηνίες αποθηκεύτηκαν
+
+## Prototype pointers
+In both `design/VacationApp.dc.html` and `design/VacationDesktop.dc.html`:
+- **Shared logic**: `TRIP0`, the date helpers and `tripVals()` sit above the class. `moveTo`, `dragStart` / `dragEnd`, `pickDate`, `saveCal` and `autoPlan` are on the class.
+- **Markup**: blocks `TRIP TAB` + `TRIP SHEETS` (mobile), the `showTrip` panel block and the `showCal` / `showSheet` overlays (desktop).
 
 ## Files
 - `design/Vacation Map Mobile.dc.html` — canvas with the mobile directions (turn 1; **1a** is the one to build) and the desktop layout (turn 2, **2a**).
