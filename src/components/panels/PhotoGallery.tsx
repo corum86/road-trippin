@@ -1,8 +1,15 @@
 import { useEffect, useState } from 'react';
 import type { Photo } from '../../types/models';
+import { useI18n } from '../../i18n/context';
 
 interface PhotoGalleryProps {
   photos: Photo[];
+  /** replaces the default auto-fill grid layout */
+  gridClassName?: string;
+  /** print each photo's caption over its thumbnail */
+  showCaptions?: boolean;
+  /** extra grid cell after the thumbnails, e.g. an "add photo" tile */
+  trailing?: React.ReactNode;
 }
 
 function Chevron({ direction }: { direction: 'left' | 'right' }) {
@@ -20,7 +27,8 @@ function Chevron({ direction }: { direction: 'left' | 'right' }) {
   );
 }
 
-export function PhotoGallery({ photos }: PhotoGalleryProps) {
+export function PhotoGallery({ photos, gridClassName, showCaptions, trailing }: PhotoGalleryProps) {
+  const { t } = useI18n();
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   const isOpen = lightboxIndex !== null;
@@ -41,24 +49,26 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, count]);
 
-  if (count === 0) return null;
+  if (count === 0 && !trailing) return null;
 
   const photo = lightboxIndex !== null ? photos[lightboxIndex] : null;
 
   return (
     <div className="vm-photo-gallery">
-      <div className="vm-photo-grid">
+      <div className={gridClassName ?? 'vm-photo-grid'}>
         {photos.map((p, i) => (
           <button
             key={p.id}
             type="button"
             className="vm-photo-thumb-btn"
             onClick={() => setLightboxIndex(i)}
-            aria-label={p.caption ? `Enlarge photo: ${p.caption}` : 'Enlarge photo'}
+            aria-label={p.caption ? t('gallery.enlargeCaption', { caption: p.caption }) : t('gallery.enlarge')}
           >
             <img src={p.url} alt={p.caption ?? ''} loading="lazy" className="vm-photo-thumb" />
+            {showCaptions && p.caption && <span className="vm-photo-thumb-caption">{p.caption}</span>}
           </button>
         ))}
+        {trailing}
       </div>
 
       {photo && (
@@ -67,7 +77,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
             <button
               type="button"
               className="vm-lightbox-nav vm-lightbox-nav-prev"
-              aria-label="Previous photo"
+              aria-label={t('gallery.prev')}
               onClick={(e) => {
                 e.stopPropagation();
                 showPrev();
@@ -89,7 +99,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
               )}
             </p>
             <button type="button" className="vm-lightbox-close" onClick={() => setLightboxIndex(null)}>
-              Close
+              {t('gallery.close')}
             </button>
           </div>
 
@@ -97,7 +107,7 @@ export function PhotoGallery({ photos }: PhotoGalleryProps) {
             <button
               type="button"
               className="vm-lightbox-nav vm-lightbox-nav-next"
-              aria-label="Next photo"
+              aria-label={t('gallery.next')}
               onClick={(e) => {
                 e.stopPropagation();
                 showNext();

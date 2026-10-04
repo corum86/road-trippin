@@ -1,0 +1,655 @@
+/* Desktop shell (layout 2a), rendered at 1024px and wider: navigation rail,
+   side panel, map stage and floating panels. It reuses the shared screens
+   (screens/screens.css) and adjusts their spacing here; values follow the
+   "Desktop (2a)" section of design_handoff_mobile_app/README.md. */
+
+.vm-desktop-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+/* ---------- navigation rail ---------- */
+
+.vm-desktop-rail {
+  width: 88px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 0 16px;
+  background: var(--surface-3);
+}
+
+.vm-desktop-rail-mark {
+  width: 44px;
+  height: 44px;
+  margin-bottom: 18px;
+  border-radius: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #ffd166, var(--accent-soft));
+  color: #fff;
+  font-size: 18px;
+  box-shadow: var(--shadow-sm);
+}
+
+.vm-desktop-rail-item {
+  width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 0;
+  color: var(--text);
+}
+
+.vm-desktop-rail-indicator {
+  width: 56px;
+  height: 32px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5c4f40;
+  transition: background-color 0.2s ease;
+}
+
+.vm-desktop-rail-item:hover .vm-desktop-rail-indicator {
+  background: #e9e0d2;
+}
+
+.vm-desktop-rail-item-active .vm-desktop-rail-indicator,
+.vm-desktop-rail-item-active:hover .vm-desktop-rail-indicator {
+  background: var(--accent-2-indicator);
+  color: var(--accent-2-dark);
+}
+
+.vm-desktop-rail-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.vm-desktop-rail-item-active .vm-desktop-rail-label {
+  font-weight: 700;
+}
+
+.vm-desktop-rail-spacer {
+  flex: 1;
+}
+
+.vm-desktop-rail-lang {
+  width: 48px;
+  height: 40px;
+  border: 1px solid #e3d6c2;
+  border-radius: 20px;
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 700;
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-rail-lang:hover {
+  background: var(--surface);
+}
+
+/* ---------- side panel ---------- */
+
+.vm-desktop-panel {
+  width: 400px;
+  flex: none;
+  overflow: hidden;
+  border-right: 1px solid var(--border);
+  background: var(--bg);
+  transition: width 0.2s var(--ease-emphasized);
+}
+
+.vm-desktop-panel-collapsed {
+  width: 0;
+  border-right-width: 0;
+}
+
+.vm-desktop-panel-inner {
+  position: relative;
+  width: 400px;
+  height: 100%;
+}
+
+.vm-desktop-panel .vm-scroll {
+  padding-bottom: 28px;
+  scrollbar-width: thin;
+}
+
+.vm-desktop-panel .vm-scroll::-webkit-scrollbar {
+  display: block;
+  width: 8px;
+}
+
+.vm-desktop-panel .vm-screen-title {
+  padding: 28px 24px 4px;
+  font-size: 26px;
+  line-height: 1.2;
+}
+
+.vm-desktop-panel-header {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding: 28px 24px 14px;
+}
+
+.vm-desktop-panel-heading {
+  flex: 1;
+  min-width: 0;
+}
+
+.vm-desktop-eyebrow {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.vm-desktop-panel-title {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.vm-desktop-add-btn {
+  height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 0 12px;
+  border-radius: 20px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 4px 14px rgba(239, 90, 42, 0.28);
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-add-btn:hover {
+  background: #e14d1e;
+}
+
+.vm-ai-search-btn {
+  height: 40px;
+  min-width: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--accent-2);
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color 0.15s ease;
+}
+
+.vm-ai-search-btn .vm-icon {
+  font-size: 20px;
+}
+
+.vm-ai-search-btn:hover:not(:disabled) {
+  border-color: var(--border-hover);
+}
+
+/* Places */
+.vm-desktop-panel .vm-chips {
+  gap: 6px;
+  padding: 0 24px 16px;
+}
+
+.vm-desktop-panel .vm-chip {
+  height: 32px;
+  padding: 0 11px;
+  border-radius: 16px;
+}
+
+.vm-desktop-panel .vm-place-list {
+  gap: 8px;
+}
+
+.vm-desktop-panel .vm-place-photo {
+  width: 64px;
+  height: 64px;
+}
+
+.vm-desktop-panel .vm-place-card,
+.vm-desktop-panel .vm-stop-card,
+.vm-desktop-panel .vm-home-card {
+  transition: border-color 0.15s ease;
+}
+
+.vm-desktop-panel .vm-place-card:hover,
+.vm-desktop-panel .vm-stop-card:hover,
+.vm-desktop-panel .vm-home-card:hover {
+  border-color: var(--border-hover);
+}
+
+.vm-desktop-panel .vm-card-selected,
+.vm-desktop-panel .vm-card-selected:hover {
+  background: var(--accent-2-tint);
+  border-color: rgba(15, 169, 160, 0.45);
+}
+
+.vm-desktop-panel .vm-heart {
+  padding: 8px;
+  border-radius: 20px;
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-panel .vm-heart:hover {
+  background: var(--surface-3);
+}
+
+.vm-desktop-panel .vm-place-stars {
+  color: var(--star);
+}
+
+/* Trip */
+.vm-desktop-panel .vm-trip-subline {
+  padding: 0 24px;
+}
+
+.vm-desktop-panel .vm-progress {
+  margin: 12px 24px 22px;
+}
+
+.vm-desktop-panel .vm-timeline {
+  padding: 0 20px;
+}
+
+.vm-desktop-panel .vm-day-rail {
+  width: 48px;
+}
+
+.vm-desktop-panel .vm-day-circle-stops {
+  border: 1px solid var(--border);
+}
+
+/* Settings */
+.vm-desktop-panel .vm-settings {
+  gap: 24px;
+}
+
+.vm-desktop-panel .vm-settings-title {
+  padding-bottom: 0;
+}
+
+.vm-desktop-panel .vm-settings-section {
+  padding: 0 20px;
+}
+
+.vm-option-group-locked {
+  opacity: 0.45;
+}
+
+.vm-desktop-panel .vm-btn-coral {
+  height: 44px;
+  border-radius: 22px;
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-panel .vm-btn-coral:hover:not(:disabled) {
+  background: #e14d1e;
+}
+
+/* ---------- map stage ---------- */
+
+.vm-desktop-stage {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: #eaefe9;
+}
+
+.vm-desktop-stage .leaflet-control-attribution {
+  font: 500 10px/1.4 var(--font-mono);
+}
+
+.vm-desktop-stage-picking .leaflet-container,
+.vm-desktop-stage-picking .leaflet-container.leaflet-grab,
+.vm-desktop-stage-picking .leaflet-interactive {
+  cursor: crosshair;
+}
+
+.vm-desktop-map-controls {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vm-desktop-mode-switch {
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.vm-desktop-mode-btn {
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px 0 10px;
+  border-radius: 18px;
+  color: #5c4f40;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.vm-desktop-mode-btn:hover {
+  background: var(--bg);
+}
+
+.vm-desktop-mode-btn-active,
+.vm-desktop-mode-btn-active:hover {
+  background: var(--accent-2-tint);
+  color: var(--accent-2);
+}
+
+.vm-desktop-export-btn {
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px 0 12px;
+  border-radius: 22px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-export-btn:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+/* dims everything outside the area an export will capture */
+.vm-desktop-export-frame {
+  position: absolute;
+  z-index: 500;
+  border: 2px dashed rgba(255, 255, 255, 0.9);
+  border-radius: 6px;
+  box-shadow: 0 0 0 2000px rgba(43, 33, 24, 0.28);
+  pointer-events: none;
+}
+
+.vm-desktop-export-frame-label {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  background: var(--text);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.vm-desktop-pick-banner {
+  position: absolute;
+  top: 76px;
+  left: 16px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 8px 10px 16px;
+  border-radius: 18px;
+  background: var(--accent-2);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 6px 20px rgba(12, 138, 131, 0.3);
+}
+
+.vm-desktop-pick-cancel {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-pick-cancel:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ---------- floating Detail / Form ---------- */
+
+.vm-desktop-floating {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1010;
+  width: 400px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 22px;
+  background: var(--bg);
+  box-shadow: var(--shadow-floating);
+  animation: vm-desktop-float-in 0.25s var(--ease-emphasized);
+}
+
+@keyframes vm-desktop-float-in {
+  from {
+    transform: translateX(24px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vm-desktop-floating {
+    animation: none;
+  }
+
+  .vm-desktop-panel {
+    transition: none;
+  }
+}
+
+.vm-desktop-floating-scroll {
+  flex: 1;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.vm-desktop-floating-footer {
+  flex: none;
+  display: flex;
+  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+
+/* Detail */
+.vm-desktop-detail .vm-hero {
+  height: 210px;
+}
+
+.vm-desktop-detail .vm-hero-btn {
+  top: 12px;
+  width: 38px;
+  height: 38px;
+  border-radius: 19px;
+}
+
+.vm-desktop-detail .vm-hero-close {
+  right: 12px;
+}
+
+.vm-desktop-detail .vm-hero-fav {
+  right: 58px;
+}
+
+.vm-desktop-detail .vm-detail-body {
+  gap: 20px;
+  padding: 20px 22px 28px;
+}
+
+.vm-desktop-detail .vm-detail-title {
+  font-size: 24px;
+}
+
+.vm-desktop-detail .vm-photo-thumb-btn {
+  cursor: zoom-in;
+}
+
+.vm-desktop-detail .vm-detail-actions {
+  flex: 1;
+}
+
+.vm-desktop-detail .vm-detail-actions .vm-btn {
+  height: 42px;
+  border-radius: 21px;
+  gap: 6px;
+}
+
+.vm-desktop-detail .vm-btn-tint-coral:hover {
+  background: #fbdccf;
+}
+
+.vm-desktop-detail .vm-btn-tint-danger:hover {
+  background: #f8d4d7;
+}
+
+.vm-desktop-detail .vm-add-photo:hover {
+  background: var(--surface);
+}
+
+/* Form */
+.vm-desktop-form-bar {
+  margin-top: 0;
+  padding: 0 12px 0 20px;
+}
+
+.vm-desktop-form-close {
+  width: 40px;
+  height: 40px;
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-form-close:hover {
+  background: var(--surface-3);
+}
+
+.vm-desktop-form .vm-form-body {
+  padding: 20px;
+  scrollbar-width: thin;
+}
+
+.vm-desktop-form .vm-input {
+  height: 46px;
+}
+
+.vm-desktop-form .vm-textarea {
+  height: auto;
+  resize: vertical;
+}
+
+.vm-desktop-form .vm-input-sm {
+  height: 40px;
+}
+
+.vm-desktop-form .vm-coord-input,
+.vm-desktop-form .vm-btn-pick {
+  height: 42px;
+}
+
+.vm-btn-pick-active {
+  background: var(--accent-2);
+  border-color: var(--accent-2);
+  color: #fff;
+}
+
+.vm-desktop-form-footer {
+  justify-content: flex-end;
+}
+
+.vm-desktop-form-footer .vm-text-btn {
+  height: 42px;
+  padding: 0 18px;
+  border-radius: 21px;
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-form-footer .vm-text-btn:hover {
+  background: var(--accent-2-tint);
+}
+
+.vm-desktop-form-footer .vm-save-btn {
+  height: 42px;
+  padding: 0 24px;
+  border-radius: 21px;
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-form-footer .vm-save-btn:hover {
+  background: #0a7973;
+}
+
+/* ---------- toast & dialog ---------- */
+
+.vm-desktop-toast {
+  left: 24px;
+  right: auto;
+  bottom: 24px;
+  max-width: calc(100% - 48px);
+}
+
+.vm-desktop-dialog-backdrop {
+  position: fixed;
+  z-index: 1100;
+  background: rgba(15, 12, 8, 0.45);
+}
+
+.vm-desktop-dialog-backdrop .vm-dialog {
+  width: 400px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+}
+
+.vm-desktop-dialog-backdrop .vm-text-btn {
+  border-radius: 20px;
+  transition: background-color 0.15s ease;
+}
+
+.vm-desktop-dialog-backdrop .vm-text-btn:hover {
+  background: var(--accent-2-tint);
+}
+
+/* ---------- labels ---------- */
+
+.leaflet-tooltip.vm-pin-label-lg {
+  padding: 3px 9px;
+  border-radius: 11px;
+  font-size: 12px;
+}

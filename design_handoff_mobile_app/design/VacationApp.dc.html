@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0..1,0&display=block" rel="stylesheet">
+<style>*{box-sizing:border-box}input,textarea,button{font:inherit}a{color:#0c8a83}a:hover{color:#075e59}</style>
+</helmet>
+<div style="position:relative;width:100%;height:100%;overflow:hidden;background:#fbf8f3;font-family:Poppins,system-ui,sans-serif;color:#2b2118;display:flex;flex-direction:column;font-size:14px;line-height:1.45">
+
+<div style="position:relative;flex:1;min-height:0;overflow:hidden">
+
+<!-- ============ MAP TAB ============ -->
+<sc-if value="{{ showMapA }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0">{{ mapA }}</div>
+  <div style="position:absolute;top:12px;left:12px;right:12px;height:52px;background:#fff;border-radius:26px;box-shadow:0 4px 16px rgba(120,72,20,.14);display:flex;align-items:center;gap:4px;padding:0 6px 0 18px">
+    <span style="font-size:16px;font-weight:700;flex:1">{{ t.appTitle }}</span>
+    <button onClick="{{ toggleMode }}" style="width:40px;height:40px;border:none;border-radius:20px;background:#f4eee5;color:#2b2118;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:21px;line-height:1">{{ modeIcon }}</span></button>
+    <button onClick="{{ toggleLang }}" style="height:40px;min-width:44px;border:none;border-radius:20px;background:#f4eee5;color:#2b2118;font-size:12px;font-weight:700;cursor:pointer">{{ langCode }}</button>
+  </div>
+  <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ false }}">
+    <div style="position:absolute;left:12px;right:12px;bottom:12px;background:#fff;border-radius:22px;box-shadow:0 8px 28px rgba(120,72,20,.18);padding:14px;display:flex;flex-direction:column;gap:12px">
+      <div style="display:flex;gap:12px;align-items:center">
+        <div style="width:64px;height:64px;flex:none;border-radius:14px;background:repeating-linear-gradient(135deg,#efe6d8 0 6px,#f6efe4 6px 12px);display:flex;align-items:center;justify-content:center;font:500 9px ui-monospace,Menlo,monospace;color:#8a7a63">photo</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:17px;font-weight:700;line-height:1.25">{{ sel.name }}</div>
+          <div style="font-size:13px;color:#0c8a83;font-weight:600">{{ sel.route }}</div>
+          <div style="font-size:12px;color:#8a7a63">{{ sel.statusLabel }}</div>
+        </div>
+        <button onClick="{{ clearSel }}" style="width:36px;height:36px;align-self:flex-start;border:none;background:transparent;color:#8a7a63;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">close</span></button>
+      </div>
+      <button onClick="{{ sel.open }}" style="height:46px;border:none;border-radius:23px;background:#0c8a83;color:#fff;font-weight:600;font-size:14px;cursor:pointer">{{ t.details }}</button>
+    </div>
+  </sc-if>
+  <sc-if value="{{ noSel }}" hint-placeholder-val="{{ true }}">
+    <div style="position:absolute;left:0;right:0;bottom:12px;display:flex;gap:10px;overflow-x:auto;padding:4px 12px;scrollbar-width:none">
+      <sc-for list="{{ dests }}" as="d" hint-placeholder-count="3">
+        <div onClick="{{ d.select }}" style="flex:none;width:190px;background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(120,72,20,.14);padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:2px">
+          <div style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:4px;background:{{ d.dot }};flex:none"></span><span style="font-size:11px;color:#8a7a63;font-weight:600;text-transform:uppercase;letter-spacing:.05em">{{ d.statusLabel }}</span></div>
+          <div style="font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.name }}</div>
+          <div style="font-size:12px;color:#8a7a63">{{ d.route }}</div>
+        </div>
+      </sc-for>
+      <div onClick="{{ openAdd }}" style="flex:none;width:72px;border-radius:18px;background:#ef5a2a;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(120,72,20,.14)"><span style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1">add</span></div>
+    </div>
+  </sc-if>
+</sc-if>
+
+<sc-if value="{{ showMapB }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;padding-bottom:100px">
+    <div style="display:flex;align-items:flex-end;padding:16px 20px 12px;gap:12px">
+      <div style="flex:1">
+        <div style="font-size:12px;color:#8a7a63;font-weight:600">{{ t.appTitle }}</div>
+        <div style="font-size:22px;font-weight:700;line-height:1.2">{{ t.tripName }}</div>
+      </div>
+      <button onClick="{{ toggleLang }}" style="height:36px;min-width:44px;border:1px solid #efe4d2;border-radius:18px;background:#fff;color:#2b2118;font-size:12px;font-weight:700;cursor:pointer">{{ langCode }}</button>
+    </div>
+    <div style="position:relative;margin:0 16px;height:260px;border-radius:22px;overflow:hidden;border:1px solid #efe4d2">
+      {{ mapB }}
+      <button onClick="{{ toggleMode }}" style="position:absolute;top:10px;right:10px;height:32px;border:none;border-radius:16px;background:#fff;box-shadow:0 1px 3px rgba(120,72,20,.12);display:flex;align-items:center;gap:6px;padding:0 12px 0 10px;font-size:12px;font-weight:600;color:#2b2118;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">{{ modeIcon }}</span>{{ modeLabel }}</button>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 20px 8px">
+      <span style="font-size:15px;font-weight:700">{{ t.destinations }} · {{ destCount }}</span>
+      <button onClick="{{ openAdd }}" style="border:none;background:#fde9e0;color:#ef5a2a;border-radius:16px;height:32px;padding:0 14px;font-size:13px;font-weight:600;cursor:pointer">{{ t.add }}</button>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;padding:0 12px">
+      <sc-for list="{{ dests }}" as="d" hint-placeholder-count="5">
+        <div onClick="{{ d.selectOrOpen }}" style="display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:16px;border:1px solid {{ d.rowBorder }};background:{{ d.rowBg }};cursor:pointer">
+          <div style="width:34px;height:34px;flex:none;border-radius:17px;background:{{ d.dot }};color:#fff;display:flex;align-items:center;justify-content:center"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">{{ d.icon }}</span></div>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.name }}</div>
+            <div style="font-size:12px;color:#8a7a63">{{ d.route }}</div>
+          </div>
+          <span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;color:#c9b89e">chevron_right</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ showMapC }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0">{{ mapC }}</div>
+  <div style="position:absolute;top:20px;left:22px;right:16px;display:flex;align-items:flex-start;gap:8px;pointer-events:none">
+    <div style="flex:1">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#ff9f52">{{ t.appTitle }}</div>
+      <div style="font-size:34px;font-weight:800;line-height:1.05;color:#fff;letter-spacing:-.02em;margin-top:6px;max-width:220px">{{ t.tripName }}</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.72);margin-top:8px">{{ placesLine }}</div>
+    </div>
+    <button onClick="{{ toggleMode }}" style="pointer-events:auto;width:40px;height:40px;border:1px solid rgba(255,255,255,.18);border-radius:20px;background:rgba(255,255,255,.08);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1">{{ modeIcon }}</span></button>
+    <button onClick="{{ toggleLang }}" style="pointer-events:auto;height:40px;min-width:44px;border:1px solid rgba(255,255,255,.18);border-radius:20px;background:rgba(255,255,255,.08);color:#fff;font-size:12px;font-weight:700;cursor:pointer">{{ langCode }}</button>
+  </div>
+  <div style="position:absolute;left:0;right:0;bottom:0;background:#fbf8f3;border-radius:28px 28px 0 0;padding:18px 22px 20px;display:flex;flex-direction:column;gap:4px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span style="font:600 12px ui-monospace,Menlo,monospace;color:#8a7a63;flex:1">{{ cSel.counter }}</span>
+      <button onClick="{{ prevSel }}" style="width:34px;height:34px;border:1px solid #efe4d2;border-radius:17px;background:#fff;color:#2b2118;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">chevron_left</span></button>
+      <button onClick="{{ nextSel }}" style="width:34px;height:34px;border:1px solid #efe4d2;border-radius:17px;background:#fff;color:#2b2118;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">chevron_right</span></button>
+    </div>
+    <div style="display:flex;align-items:flex-end;gap:12px;margin-top:6px">
+      <div style="flex:1;min-width:0">
+        <div style="font-size:26px;font-weight:800;line-height:1.1;letter-spacing:-.01em">{{ cSel.name }}</div>
+        <div style="font-size:13px;color:#8a7a63;margin-top:6px">{{ cSel.route }} · {{ cSel.statusLabel }}</div>
+      </div>
+      <button onClick="{{ cSel.open }}" style="width:56px;height:56px;flex:none;border:none;border-radius:28px;background:#ef5a2a;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:26px;line-height:1">arrow_forward</span></button>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ PLACES TAB ============ -->
+<sc-if value="{{ showList }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;padding-bottom:110px">
+    <div style="padding:20px 20px 12px;font-size:24px;font-weight:700">{{ t.tabList }}</div>
+    <div style="display:flex;gap:8px;padding:0 20px 14px;overflow-x:auto;scrollbar-width:none">
+      <sc-for list="{{ filters }}" as="f" hint-placeholder-count="4">
+        <button onClick="{{ f.on }}" style="flex:none;height:34px;padding:0 14px;border-radius:17px;border:1px solid {{ f.border }};background:{{ f.bg }};color:{{ f.color }};font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px">{{ f.label }}<span style="opacity:.6">{{ f.n }}</span></button>
+      </sc-for>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;padding:0 16px">
+      <sc-for list="{{ listDests }}" as="d" hint-placeholder-count="4">
+        <div onClick="{{ d.open }}" style="display:flex;gap:14px;align-items:center;background:#fff;border:1px solid #efe4d2;border-radius:18px;padding:10px;cursor:pointer">
+          <div style="width:68px;height:68px;flex:none;border-radius:12px;background:repeating-linear-gradient(135deg,#efe6d8 0 6px,#f6efe4 6px 12px);display:flex;align-items:center;justify-content:center;font:500 9px ui-monospace,Menlo,monospace;color:#8a7a63">photo</div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px">
+            <div style="font-weight:700;font-size:15px;line-height:1.3">{{ d.name }}</div>
+            <div style="font-size:12px;color:#8a7a63">{{ d.route }}</div>
+            <div style="display:flex;gap:6px;margin-top:4px"><span style="font-size:11px;font-weight:600;padding:2px 9px;border-radius:10px;background:{{ d.chipBg }};color:{{ d.chipColor }}">{{ d.statusLabel }}</span><span style="font-size:11px;color:#8a7a63">{{ d.ratingText }}</span></div>
+          </div>
+          <span onClick="{{ d.toggleFav }}" style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:{{ d.favColor }};font-variation-settings:'FILL' {{ d.favFill }};padding:6px;cursor:pointer">favorite</span>
+        </div>
+      </sc-for>
+      <sc-if value="{{ listEmpty }}" hint-placeholder-val="{{ false }}"><div style="padding:32px 8px;text-align:center;color:#8a7a63">{{ t.emptyFilter }}</div></sc-if>
+    </div>
+  </div>
+  <button onClick="{{ openAdd }}" style="position:absolute;right:16px;bottom:{{ fabBottom }}px;height:56px;border:none;border-radius:18px;background:#ef5a2a;color:#fff;display:flex;align-items:center;gap:8px;padding:0 20px 0 16px;font-size:14px;font-weight:600;box-shadow:0 6px 20px rgba(239,90,42,.35);cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1">add</span>{{ t.addDest }}</button>
+</sc-if>
+
+<!-- ============ TRIP TAB ============ -->
+<sc-if value="{{ showTrip }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;padding-bottom:110px">
+    <div style="padding:20px 20px 4px;font-size:24px;font-weight:700">{{ t.tripName }}</div>
+    <div style="padding:0 20px;font-size:13px;color:#8a7a63">{{ t.tripDates }} · {{ visitedLine }}</div>
+    <div style="margin:12px 20px 20px;height:6px;border-radius:3px;background:#efe4d2;overflow:hidden"><div style="height:100%;width:{{ progress }}%;background:#0c8a83;border-radius:3px"></div></div>
+    <div style="display:flex;flex-direction:column;padding:0 16px">
+      <sc-for list="{{ days }}" as="day" hint-placeholder-count="5">
+        <div style="display:flex;gap:14px">
+          <div style="width:52px;flex:none;display:flex;flex-direction:column;align-items:center">
+            <div style="width:44px;height:44px;border-radius:22px;background:{{ day.circleBg }};color:{{ day.circleColor }};display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1"><span style="font-size:9px;font-weight:600;text-transform:uppercase">{{ t.day }}</span><span style="font-size:16px;font-weight:700">{{ day.n }}</span></div>
+            <div style="flex:1;width:2px;background:#efe4d2;margin:4px 0;min-height:16px"></div>
+          </div>
+          <div style="flex:1;min-width:0;padding-bottom:16px">
+            <div style="font-size:12px;color:#8a7a63;font-weight:600;padding-top:4px">{{ day.date }}</div>
+            <sc-if value="{{ day.empty }}" hint-placeholder-val="{{ false }}"><div style="font-size:14px;color:#8a7a63;padding:6px 0">{{ day.note }}</div></sc-if>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+              <sc-for list="{{ day.stops }}" as="s" hint-placeholder-count="1">
+                <div onClick="{{ s.open }}" style="display:flex;align-items:center;gap:10px;background:#fff;border:1px solid #efe4d2;border-radius:14px;padding:10px 12px;cursor:pointer">
+                  <span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;color:{{ s.dot }};font-variation-settings:'FILL' 1">{{ s.icon }}</span>
+                  <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:14px">{{ s.name }}</div><div style="font-size:12px;color:#8a7a63">{{ s.route }}</div></div>
+                  <span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;color:#c9b89e">chevron_right</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ SETTINGS TAB ============ -->
+<sc-if value="{{ showSettings }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;padding-bottom:110px;display:flex;flex-direction:column;gap:22px">
+    <div style="padding:20px 20px 0;font-size:24px;font-weight:700">{{ t.tabSettings }}</div>
+    <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px">
+      <div style="padding:0 4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.homeBase }}</div>
+      <div onClick="{{ openHome }}" style="display:flex;align-items:center;gap:12px;background:#fff;border:1px solid #efe4d2;border-radius:18px;padding:14px;cursor:pointer">
+        <div style="width:40px;height:40px;border-radius:20px;background:linear-gradient(135deg,#ffd166,#ff7a4d);color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px">★</div>
+        <div style="flex:1;min-width:0"><div style="font-weight:600">{{ home.name }}</div><div style="font:12px ui-monospace,Menlo,monospace;color:#8a7a63">{{ home.coords }}</div></div>
+        <span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;color:#8a7a63">edit</span>
+      </div>
+    </div>
+    <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px">
+      <div style="padding:0 4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.language }}</div>
+      <div style="display:flex;background:#f4eee5;border-radius:16px;padding:4px;gap:4px">
+        <sc-for list="{{ langs }}" as="l" hint-placeholder-count="2">
+          <button onClick="{{ l.on }}" style="flex:1;height:40px;border:none;border-radius:12px;background:{{ l.bg }};color:{{ l.color }};box-shadow:{{ l.shadow }};font-weight:600;font-size:14px;cursor:pointer">{{ l.label }}</button>
+        </sc-for>
+      </div>
+    </div>
+    <div style="padding:0 16px;display:flex;flex-direction:column;gap:8px">
+      <div style="padding:0 4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.exportImg }}</div>
+      <div style="background:#fff;border:1px solid #efe4d2;border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;font-weight:600;color:#8a7a63">{{ t.aspect }}</span>
+          <div style="display:flex;gap:6px"><sc-for list="{{ aspects }}" as="a" hint-placeholder-count="4"><button onClick="{{ a.on }}" style="flex:1;height:36px;border-radius:12px;border:1px solid {{ a.border }};background:{{ a.bg }};color:{{ a.color }};font-size:13px;font-weight:600;cursor:pointer">{{ a.label }}</button></sc-for></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px"><span style="font-size:13px;font-weight:600;color:#8a7a63">{{ t.quality }}</span>
+          <div style="display:flex;gap:6px"><sc-for list="{{ qualities }}" as="a" hint-placeholder-count="3"><button onClick="{{ a.on }}" style="flex:1;height:36px;border-radius:12px;border:1px solid {{ a.border }};background:{{ a.bg }};color:{{ a.color }};font-size:13px;font-weight:600;cursor:pointer">{{ a.label }}</button></sc-for></div>
+        </div>
+        <button onClick="{{ exportImage }}" style="height:46px;border:none;border-radius:23px;background:#ef5a2a;color:#fff;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1">download</span>{{ t.exportBtn }}</button>
+      </div>
+      <div style="padding:2px 4px;font-size:12px;color:#8a7a63">{{ t.dataHint }}</div>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ NAV B (floating) ============ -->
+<sc-if value="{{ navB }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;left:16px;right:16px;bottom:16px;height:64px;border-radius:32px;background:#2b2118;display:flex;align-items:center;padding:8px;gap:4px;box-shadow:0 10px 30px rgba(43,33,24,.3);z-index:5">
+    <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="4">
+      <button onClick="{{ tb.on }}" style="flex:{{ tb.flex }};height:48px;border:none;border-radius:24px;background:{{ tb.bBg }};color:{{ tb.bColor }};display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;overflow:hidden;white-space:nowrap;transition:flex .25s ease,background .2s"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' {{ tb.fill }}">{{ tb.icon }}</span><sc-if value="{{ tb.active }}" hint-placeholder-val="{{ false }}"><span>{{ tb.label }}</span></sc-if></button>
+    </sc-for>
+  </div>
+</sc-if>
+
+<!-- ============ DETAIL A ============ -->
+<sc-if value="{{ showDetailA }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:20;background:#fbf8f3;overflow-y:auto;overflow-x:hidden;scrollbar-width:none">
+    <div style="position:relative;height:260px;background:repeating-linear-gradient(135deg,#efe6d8 0 8px,#f6efe4 8px 16px);display:flex;align-items:center;justify-content:center;font:500 11px ui-monospace,Menlo,monospace;color:#8a7a63">{{ d.heroCaption }}
+      <button onClick="{{ back }}" style="position:absolute;top:12px;left:12px;width:42px;height:42px;border:none;border-radius:21px;background:#fff;color:#2b2118;box-shadow:0 2px 8px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">arrow_back</span></button>
+      <button onClick="{{ d.toggleFav }}" style="position:absolute;top:12px;right:12px;width:42px;height:42px;border:none;border-radius:21px;background:#fff;color:{{ d.favColor }};box-shadow:0 2px 8px rgba(0,0,0,.12);display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' {{ d.favFill }}">favorite</span></button>
+      <span style="position:absolute;right:12px;bottom:12px;font:600 11px Poppins,sans-serif;background:rgba(43,33,24,.7);color:#fff;padding:3px 10px;border-radius:10px">{{ d.photoCount }}</span>
+    </div>
+    <div style="padding:20px 20px 32px;display:flex;flex-direction:column;gap:22px">
+      <div>
+        <div style="font-size:26px;font-weight:800;line-height:1.15">{{ d.name }}</div>
+        <div style="font-size:13px;color:#8a7a63;margin-top:4px">{{ d.fromHome }}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div style="background:#f6efe4;border-radius:16px;padding:12px 14px"><div style="font-size:12px;color:#8a7a63">{{ t.distance }}</div><div style="font-size:18px;font-weight:700">{{ d.km }}</div></div>
+        <div style="background:#f6efe4;border-radius:16px;padding:12px 14px"><div style="font-size:12px;color:#8a7a63">{{ t.drive }}</div><div style="font-size:18px;font-weight:700">{{ d.dur }}</div></div>
+      </div>
+      <div style="display:flex;background:#f4eee5;border-radius:16px;padding:4px;gap:4px">
+        <sc-for list="{{ d.statusOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.on }}" style="flex:1;height:40px;border:none;border-radius:12px;background:{{ o.bg }};color:{{ o.color }};box-shadow:{{ o.shadow }};font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">{{ o.icon }}</span>{{ o.label }}</button></sc-for>
+      </div>
+      <sc-if value="{{ d.visited }}" hint-placeholder-val="{{ false }}">
+        <div style="background:#fff;border:1px solid #efe4d2;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;justify-content:space-between"><span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.visitLog }}</span><span style="font-size:13px;color:#8a7a63">{{ d.date }}</span></div>
+          <div style="display:flex;gap:2px"><sc-for list="{{ d.stars }}" as="st" hint-placeholder-count="5"><span onClick="{{ st.on }}" style="font-family:'Material Symbols Rounded';font-size:28px;line-height:1;cursor:pointer;color:{{ st.color }};font-variation-settings:'FILL' {{ st.fill }}">star</span></sc-for></div>
+          <div style="font-size:14px;line-height:1.5">{{ d.note }}</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+            <sc-for list="{{ d.mine }}" as="m" hint-placeholder-count="2"><div style="aspect-ratio:1;border-radius:10px;background:repeating-linear-gradient(135deg,#e3f1ef 0 5px,#f1f8f7 5px 10px);display:flex;align-items:center;justify-content:center;font:500 8px ui-monospace,Menlo,monospace;color:#0c8a83">my photo</div></sc-for>
+            <div onClick="{{ d.addMine }}" style="aspect-ratio:1;border-radius:10px;border:1.5px dashed #c9b89e;display:flex;align-items:center;justify-content:center;color:#8a7a63;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">add_a_photo</span></div>
+          </div>
+        </div>
+      </sc-if>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.attractions }}</div>
+        <sc-for list="{{ d.attractions }}" as="a" hint-placeholder-count="2"><div style="display:flex;align-items:center;gap:10px;padding:2px 0"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1;color:#ef5a2a">location_on</span><span>{{ a.name }}</span></div></sc-for>
+        <sc-if value="{{ d.noAttr }}" hint-placeholder-val="{{ false }}"><div style="color:#8a7a63;font-size:13px">{{ t.noAttr }}</div></sc-if>
+      </div>
+      <sc-if value="{{ d.hasPhotos }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.photos }}</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><sc-for list="{{ d.photos }}" as="p" hint-placeholder-count="3"><div style="aspect-ratio:1;border-radius:10px;border:1px solid #efe4d2;background:repeating-linear-gradient(135deg,#efe6d8 0 5px,#f6efe4 5px 10px);display:flex;align-items:flex-end;padding:6px;font:500 8px ui-monospace,Menlo,monospace;color:#8a7a63">{{ p.caption }}</div></sc-for></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ d.hasLinks }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.links }}</div>
+          <sc-for list="{{ d.links }}" as="l" hint-placeholder-count="1"><div style="display:flex;align-items:center;gap:10px;color:#0c8a83;font-weight:600"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">open_in_new</span>{{ l.label }}</div></sc-for>
+        </div>
+      </sc-if>
+      <div style="display:flex;gap:8px">
+        <button onClick="{{ d.edit }}" style="flex:1;height:44px;border:none;border-radius:22px;background:#fde9e0;color:#ef5a2a;font-weight:600;cursor:pointer">{{ t.edit }}</button>
+        <button onClick="{{ askDelete }}" style="flex:1;height:44px;border:none;border-radius:22px;background:#fbe3e5;color:#e63946;font-weight:600;cursor:pointer">{{ t.delete }}</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ DETAIL B ============ -->
+<sc-if value="{{ showDetailB }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:20;background:#fbf8f3;display:flex;flex-direction:column">
+    <div style="height:64px;flex:none;display:flex;align-items:center;gap:4px;padding:0 4px">
+      <button onClick="{{ back }}" style="width:48px;height:48px;border:none;background:transparent;color:#2b2118;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1">arrow_back</span></button>
+      <span style="flex:1;font-size:18px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ d.name }}</span>
+      <button onClick="{{ d.toggleFav }}" style="width:48px;height:48px;border:none;background:transparent;color:{{ d.favColor }};display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;font-variation-settings:'FILL' {{ d.favFill }}">favorite</span></button>
+      <button onClick="{{ d.edit }}" style="width:48px;height:48px;border:none;background:transparent;color:#2b2118;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1">edit</span></button>
+    </div>
+    <div style="padding:0 16px 12px;display:flex;gap:8px;flex-wrap:wrap">
+      <span style="display:flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:16px;background:#e3f1ef;color:#0c8a83;font-size:13px;font-weight:600"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">directions_car</span>{{ d.route }}</span>
+      <span style="display:flex;align-items:center;height:32px;padding:0 12px;border-radius:16px;background:{{ d.chipBg }};color:{{ d.chipColor }};font-size:13px;font-weight:600">{{ d.statusLabel }}</span>
+    </div>
+    <div style="display:flex;border-bottom:1px solid #efe4d2;padding:0 8px">
+      <sc-for list="{{ dtabs }}" as="dt" hint-placeholder-count="3"><button onClick="{{ dt.on }}" style="flex:1;height:44px;border:none;background:transparent;border-bottom:2px solid {{ dt.line }};color:{{ dt.color }};font-weight:600;font-size:14px;cursor:pointer">{{ dt.label }}</button></sc-for>
+    </div>
+    <div style="flex:1;overflow-y:auto;scrollbar-width:none;padding:18px 16px 32px">
+      <sc-if value="{{ dtOverview }}" hint-placeholder-val="{{ true }}">
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <div style="height:150px;border-radius:18px;overflow:hidden;border:1px solid #efe4d2">{{ mapMini }}</div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.attractions }}</div>
+            <sc-for list="{{ d.attractions }}" as="a" hint-placeholder-count="2"><div style="background:#fff;border:1px solid #efe4d2;border-radius:14px;padding:12px 14px;font-weight:500">{{ a.name }}</div></sc-for>
+            <sc-if value="{{ d.noAttr }}" hint-placeholder-val="{{ false }}"><div style="color:#8a7a63;font-size:13px">{{ t.noAttr }}</div></sc-if>
+          </div>
+          <sc-if value="{{ d.hasLinks }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.links }}</div>
+              <sc-for list="{{ d.links }}" as="l" hint-placeholder-count="1"><div style="display:flex;align-items:center;gap:10px;color:#0c8a83;font-weight:600"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">open_in_new</span>{{ l.label }}</div></sc-for>
+            </div>
+          </sc-if>
+          <button onClick="{{ askDelete }}" style="height:44px;border:none;border-radius:22px;background:#fbe3e5;color:#e63946;font-weight:600;cursor:pointer">{{ t.delete }}</button>
+        </div>
+      </sc-if>
+      <sc-if value="{{ dtPhotos }}" hint-placeholder-val="{{ false }}">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <sc-for list="{{ d.photos }}" as="p" hint-placeholder-count="2"><div style="aspect-ratio:4/5;border-radius:16px;border:1px solid #efe4d2;background:repeating-linear-gradient(135deg,#efe6d8 0 6px,#f6efe4 6px 12px);display:flex;align-items:flex-end;padding:10px;font:500 10px ui-monospace,Menlo,monospace;color:#8a7a63">{{ p.caption }}</div></sc-for>
+          <sc-for list="{{ d.mine }}" as="m" hint-placeholder-count="1"><div style="aspect-ratio:4/5;border-radius:16px;background:repeating-linear-gradient(135deg,#e3f1ef 0 6px,#f1f8f7 6px 12px);display:flex;align-items:flex-end;padding:10px;font:500 10px ui-monospace,Menlo,monospace;color:#0c8a83">my photo</div></sc-for>
+          <div onClick="{{ d.addMine }}" style="aspect-ratio:4/5;border-radius:16px;border:1.5px dashed #c9b89e;display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:center;color:#8a7a63;cursor:pointer;font-size:13px;font-weight:600"><span style="font-family:'Material Symbols Rounded';font-size:26px;line-height:1">add_a_photo</span>{{ t.addPhoto }}</div>
+        </div>
+      </sc-if>
+      <sc-if value="{{ dtLog }}" hint-placeholder-val="{{ false }}">
+        <div style="display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;background:#f4eee5;border-radius:16px;padding:4px;gap:4px">
+            <sc-for list="{{ d.statusOpts }}" as="o" hint-placeholder-count="2"><button onClick="{{ o.on }}" style="flex:1;height:40px;border:none;border-radius:12px;background:{{ o.bg }};color:{{ o.color }};box-shadow:{{ o.shadow }};font-weight:600;font-size:14px;cursor:pointer">{{ o.label }}</button></sc-for>
+          </div>
+          <sc-if value="{{ d.visited }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:16px">
+              <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #efe4d2;border-radius:14px;padding:12px 14px"><span style="color:#8a7a63;font-size:13px">{{ t.visitedOn }}</span><span style="font-weight:600">{{ d.date }}</span></div>
+              <div style="display:flex;justify-content:space-between;align-items:center;background:#fff;border:1px solid #efe4d2;border-radius:14px;padding:8px 14px"><span style="color:#8a7a63;font-size:13px">{{ t.rating }}</span><span style="display:flex"><sc-for list="{{ d.stars }}" as="st" hint-placeholder-count="5"><span onClick="{{ st.on }}" style="font-family:'Material Symbols Rounded';font-size:26px;line-height:1;cursor:pointer;color:{{ st.color }};font-variation-settings:'FILL' {{ st.fill }}">star</span></sc-for></span></div>
+              <div style="background:#fff;border:1px solid #efe4d2;border-radius:14px;padding:12px 14px"><div style="color:#8a7a63;font-size:13px;margin-bottom:4px">{{ t.notes }}</div><div>{{ d.note }}</div></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ d.planned }}" hint-placeholder-val="{{ false }}"><div style="color:#8a7a63;font-size:13px;text-align:center;padding:16px">{{ t.logHint }}</div></sc-if>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ DETAIL C ============ -->
+<sc-if value="{{ showDetailC }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:20;background:#fbf8f3;overflow-y:auto;overflow-x:hidden;scrollbar-width:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 12px 0">
+      <button onClick="{{ back }}" style="width:44px;height:44px;border:1px solid #efe4d2;border-radius:22px;background:#fff;color:#2b2118;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">arrow_back</span></button>
+      <div style="display:flex;gap:8px">
+        <button onClick="{{ d.toggleFav }}" style="width:44px;height:44px;border:1px solid #efe4d2;border-radius:22px;background:#fff;color:{{ d.favColor }};display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;font-variation-settings:'FILL' {{ d.favFill }}">favorite</span></button>
+        <button onClick="{{ d.edit }}" style="width:44px;height:44px;border:1px solid #efe4d2;border-radius:22px;background:#fff;color:#2b2118;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">edit</span></button>
+      </div>
+    </div>
+    <div style="padding:20px 22px 0">
+      <div style="font:600 12px ui-monospace,Menlo,monospace;color:#ef5a2a">{{ d.counter }}</div>
+      <div style="font-size:36px;font-weight:800;line-height:1.05;letter-spacing:-.02em;margin-top:6px;text-wrap:balance">{{ d.name }}</div>
+    </div>
+    <div style="padding:26px 22px 0">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8a7a63;margin-bottom:12px">{{ t.gettingThere }}</div>
+      <div style="display:flex;gap:14px">
+        <div style="display:flex;flex-direction:column;align-items:center;width:14px;padding-top:5px">
+          <div style="width:12px;height:12px;border-radius:6px;background:linear-gradient(135deg,#ffd166,#ff7a4d)"></div>
+          <div style="flex:1;width:2px;background:repeating-linear-gradient(#c9b89e 0 4px,transparent 4px 8px);margin:4px 0"></div>
+          <div style="width:12px;height:12px;border-radius:6px;background:#ef5a2a"></div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:14px">
+          <div style="font-size:14px;color:#8a7a63">{{ home.name }}</div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:20px;font-weight:700"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1;color:#0c8a83">directions_car</span>{{ d.route }}</div>
+          <div style="font-size:14px;font-weight:600">{{ d.name }}</div>
+        </div>
+      </div>
+    </div>
+    <sc-if value="{{ d.hasPhotos }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex;gap:10px;overflow-x:auto;padding:26px 22px 0;scrollbar-width:none">
+        <sc-for list="{{ d.photos }}" as="p" hint-placeholder-count="2"><div style="flex:none;width:220px;height:160px;border-radius:18px;background:repeating-linear-gradient(135deg,#efe6d8 0 6px,#f6efe4 6px 12px);display:flex;align-items:flex-end;padding:10px;font:500 10px ui-monospace,Menlo,monospace;color:#8a7a63">{{ p.caption }}</div></sc-for>
+      </div>
+    </sc-if>
+    <div style="padding:26px 22px 0">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8a7a63;margin-bottom:8px">{{ t.attractions }}</div>
+      <sc-for list="{{ d.attractions }}" as="a" hint-placeholder-count="2"><div style="display:flex;gap:14px;align-items:baseline;padding:10px 0;border-bottom:1px solid #efe4d2"><span style="font:600 12px ui-monospace,Menlo,monospace;color:#ef5a2a">{{ a.num }}</span><span style="font-size:16px;font-weight:600">{{ a.name }}</span></div></sc-for>
+      <sc-if value="{{ d.noAttr }}" hint-placeholder-val="{{ false }}"><div style="color:#8a7a63;font-size:13px">{{ t.noAttr }}</div></sc-if>
+    </div>
+    <div style="margin:26px 16px 0;background:#2b2118;color:#fff;border-radius:24px;padding:20px">
+      <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#ff9f52">{{ t.yourVisit }}</div>
+      <sc-if value="{{ d.visited }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:24px;font-weight:700;margin-top:8px">{{ d.date }}</div>
+        <div style="display:flex;margin-top:6px"><sc-for list="{{ d.stars }}" as="st" hint-placeholder-count="5"><span onClick="{{ st.on }}" style="font-family:'Material Symbols Rounded';font-size:26px;line-height:1;cursor:pointer;color:{{ st.colorDark }};font-variation-settings:'FILL' {{ st.fill }}">star</span></sc-for></div>
+        <div style="font-size:15px;line-height:1.55;margin-top:10px;color:rgba(255,255,255,.86)">{{ d.note }}</div>
+        <div style="display:flex;gap:8px;margin-top:14px;align-items:center"><sc-for list="{{ d.mine }}" as="m" hint-placeholder-count="2"><div style="width:52px;height:52px;border-radius:12px;background:repeating-linear-gradient(135deg,#3a2f25 0 5px,#4a3d31 5px 10px)"></div></sc-for><div onClick="{{ d.addMine }}" style="width:52px;height:52px;border-radius:12px;border:1.5px dashed rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">add_a_photo</span></div></div>
+        <button onClick="{{ d.unvisit }}" style="margin-top:16px;border:none;background:transparent;color:rgba(255,255,255,.6);font-size:12px;padding:0;cursor:pointer;text-decoration:underline">{{ t.markPlanned }}</button>
+      </sc-if>
+      <sc-if value="{{ d.planned }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:15px;color:rgba(255,255,255,.75);margin-top:8px">{{ t.logHint }}</div>
+        <button onClick="{{ d.markVisited }}" style="margin-top:14px;height:46px;width:100%;border:none;border-radius:23px;background:#ef5a2a;color:#fff;font-weight:600;font-size:14px;cursor:pointer">{{ t.markVisited }}</button>
+      </sc-if>
+    </div>
+    <sc-if value="{{ d.hasLinks }}" hint-placeholder-val="{{ false }}">
+      <div style="padding:26px 22px 0;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#8a7a63">{{ t.links }}</div>
+        <sc-for list="{{ d.links }}" as="l" hint-placeholder-count="1"><div style="display:flex;align-items:center;gap:10px;color:#0c8a83;font-weight:600"><span style="font-family:'Material Symbols Rounded';font-size:18px;line-height:1">open_in_new</span>{{ l.label }}</div></sc-for>
+      </div>
+    </sc-if>
+    <div style="padding:26px 22px 32px"><button onClick="{{ askDelete }}" style="border:none;background:transparent;color:#e63946;font-weight:600;padding:0;cursor:pointer">{{ t.delete }}</button></div>
+  </div>
+</sc-if>
+
+<!-- ============ FORM ============ -->
+<sc-if value="{{ showForm }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:30;background:#fbf8f3;display:flex;flex-direction:column">
+    <div style="height:64px;flex:none;display:flex;align-items:center;gap:4px;padding:0 8px 0 4px;border-bottom:1px solid #efe4d2">
+      <button onClick="{{ back }}" style="width:48px;height:48px;border:none;background:transparent;color:#2b2118;display:flex;align-items:center;justify-content:center;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1">close</span></button>
+      <span style="flex:1;font-size:18px;font-weight:700">{{ form.title }}</span>
+      <button onClick="{{ saveForm }}" style="height:40px;padding:0 20px;border:none;border-radius:20px;background:#0c8a83;color:#fff;font-weight:600;cursor:pointer">{{ t.save }}</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;scrollbar-width:none;padding:20px 16px;display:flex;flex-direction:column;gap:16px">
+      <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#8a7a63">{{ t.name }}
+        <input value="{{ form.name }}" onChange="{{ form.onName }}" placeholder="{{ form.namePh }}" style="height:50px;border:1px solid #efe4d2;border-radius:14px;background:#fff;padding:0 14px;font-size:15px;font-weight:400;color:#2b2118;outline:none">
+      </label>
+      <div style="border:1px solid {{ form.locBorder }};border-radius:18px;padding:14px;background:#fff;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#0c8a83">{{ t.location }}</div>
+        <div style="display:flex;gap:8px">
+          <label style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:#8a7a63">{{ t.lat }}<input value="{{ form.lat }}" onChange="{{ form.onLat }}" inputMode="decimal" style="width:100%;min-width:0;height:44px;border:1px solid #efe4d2;border-radius:12px;background:#fbf8f3;padding:0 10px;font:14px ui-monospace,Menlo,monospace;color:#2b2118;outline:none"></label>
+          <label style="flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:#8a7a63">{{ t.lng }}<input value="{{ form.lng }}" onChange="{{ form.onLng }}" inputMode="decimal" style="width:100%;min-width:0;height:44px;border:1px solid #efe4d2;border-radius:12px;background:#fbf8f3;padding:0 10px;font:14px ui-monospace,Menlo,monospace;color:#2b2118;outline:none"></label>
+        </div>
+        <button onClick="{{ startPick }}" style="height:44px;border:1px solid rgba(15,169,160,.35);border-radius:22px;background:#e3f1ef;color:#0c8a83;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1">pin_drop</span>{{ t.pick }}</button>
+        <sc-if value="{{ form.hasErr }}" hint-placeholder-val="{{ false }}"><div style="font-size:12px;color:#e63946;font-weight:600">{{ t.needLoc }}</div></sc-if>
+      </div>
+      <sc-if value="{{ form.isDest }}" hint-placeholder-val="{{ true }}">
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#8a7a63">{{ t.attractions }}
+          <textarea value="{{ form.attr }}" onChange="{{ form.onAttr }}" placeholder="{{ t.attrPh }}" rows="3" style="border:1px solid #efe4d2;border-radius:14px;background:#fff;padding:12px 14px;font-size:15px;font-weight:400;color:#2b2118;outline:none;resize:none"></textarea>
+        </label>
+        <label style="display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:#8a7a63">{{ t.notes }}
+          <textarea value="{{ form.note }}" onChange="{{ form.onNote }}" rows="3" style="border:1px solid #efe4d2;border-radius:14px;background:#fff;padding:12px 14px;font-size:15px;font-weight:400;color:#2b2118;outline:none;resize:none"></textarea>
+        </label>
+      </sc-if>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ PICK ON MAP ============ -->
+<sc-if value="{{ picking }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;inset:0;z-index:40;background:#eef0ea">
+    {{ mapPick }}
+    <div style="position:absolute;top:12px;left:12px;right:12px;background:#0c8a83;color:#fff;border-radius:18px;padding:12px 8px 12px 16px;display:flex;align-items:center;gap:8px;box-shadow:0 6px 20px rgba(12,138,131,.3)">
+      <span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">touch_app</span>
+      <span style="flex:1;font-size:13px;font-weight:600">{{ t.picking }}</span>
+      <button onClick="{{ cancelPick }}" style="width:36px;height:36px;border:none;background:transparent;color:#fff;cursor:pointer"><span style="font-family:'Material Symbols Rounded';font-size:22px;line-height:1">close</span></button>
+    </div>
+  </div>
+</sc-if>
+
+<!-- ============ DELETE CONFIRM ============ -->
+<sc-if value="{{ confirmDel }}" hint-placeholder-val="{{ false }}">
+  <div onClick="{{ cancelDelete }}" style="position:absolute;inset:0;z-index:50;background:rgba(15,12,8,.5);display:flex;align-items:center;justify-content:center;padding:32px">
+    <div style="background:#fbf8f3;border-radius:28px;padding:24px;width:100%;display:flex;flex-direction:column;gap:16px">
+      <div style="font-size:20px;font-weight:700">{{ delTitle }}</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px">
+        <button onClick="{{ cancelDelete }}" style="height:40px;padding:0 16px;border:none;background:transparent;color:#0c8a83;font-weight:600;cursor:pointer">{{ t.cancel }}</button>
+        <button onClick="{{ doDelete }}" style="height:40px;padding:0 18px;border:none;border-radius:20px;background:#e63946;color:#fff;font-weight:600;cursor:pointer">{{ t.delete }}</button>
+      </div>
+    </div>
+  </div>
+</sc-if>
+
+<sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+  <div style="position:absolute;left:16px;right:16px;bottom:{{ toastBottom }}px;z-index:60;background:#2b2118;color:#fff;border-radius:14px;padding:12px 16px;font-size:13px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 24px rgba(0,0,0,.25)"><span style="font-family:'Material Symbols Rounded';font-size:20px;line-height:1;color:#2dd4c4">check_circle</span>{{ toast }}</div>
+</sc-if>
+
+</div>
+
+<!-- ============ NAV A (Material) ============ -->
+<sc-if value="{{ navA }}" hint-placeholder-val="{{ false }}">
+  <div style="height:80px;flex:none;background:#f4eee5;display:flex;padding:0 8px">
+    <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="4">
+      <button onClick="{{ tb.on }}" style="flex:1;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;color:#2b2118">
+        <span style="width:64px;height:32px;border-radius:16px;background:{{ tb.aBg }};display:flex;align-items:center;justify-content:center;transition:background .2s"><span style="font-family:'Material Symbols Rounded';font-size:24px;line-height:1;color:{{ tb.aIcon }};font-variation-settings:'FILL' {{ tb.fill }}">{{ tb.icon }}</span></span>
+        <span style="font-size:12px;font-weight:{{ tb.weight }}">{{ tb.label }}</span>
+      </button>
+    </sc-for>
+  </div>
+</sc-if>
+
+<!-- ============ NAV C (text) ============ -->
+<sc-if value="{{ navC }}" hint-placeholder-val="{{ false }}">
+  <div style="height:64px;flex:none;background:#fbf8f3;border-top:1px solid #efe4d2;display:flex;padding:0 8px">
+    <sc-for list="{{ tabs }}" as="tb" hint-placeholder-count="4">
+      <button onClick="{{ tb.on }}" style="flex:1;border:none;background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer">
+        <span style="width:5px;height:5px;border-radius:3px;background:{{ tb.dot }}"></span>
+        <span style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:{{ tb.cColor }}">{{ tb.label }}</span>
+      </button>
+    </sc-for>
+  </div>
+</sc-if>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:396,&quot;height&quot;:812},&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;a&quot;,&quot;b&quot;,&quot;c&quot;],&quot;default&quot;:&quot;a&quot;,&quot;tsType&quot;:&quot;'a'|'b'|'c'&quot;}}">
+const B = { minLat: 38.5, maxLat: 39.6, minLng: 19.8, maxLng: 20.88 };
+const STR = {
+  en: { appTitle:'Vacation Map', tripName:'Epirus summer', tripDates:'13–18 Jul 2026', tabMap:'Map', tabList:'Places', tabTrip:'Trip', tabSettings:'Settings', destinations:'Destinations', add:'+ Add', addDest:'Add destination', editDest:'Edit destination', editHome:'Edit main location', planned:'Planned', visited:'Visited', favorites:'Favorites', all:'All', attractions:'Main attractions', photos:'Photos', links:'Links', notes:'Notes', visitLog:'Visit log', visitedOn:'Visited on', rating:'Rating', details:'Details', overview:'Overview', log:'Log', distance:'Distance', drive:'Drive', fromHome:'from {home}', edit:'Edit', delete:'Delete', cancel:'Cancel', save:'Save', name:'Name', location:'Location', lat:'Latitude', lng:'Longitude', pick:'Pick on map', picking:'Tap anywhere on the map to set the location…', needLoc:'Set a location first — type coordinates or pick on map.', attrPh:'One per line', homeBase:'Home base', language:'Language', exportImg:'Export map as image', aspect:'Aspect ratio', quality:'Image quality', exportBtn:'Export map', exported:'Map image saved to Photos ({a}, {q})', dataHint:'Edits save to this device only.', day:'Day', freeDay:'Free day', arrive:'Arrive at home base', visitedOf:'{v} of {n} visited', placesLine:'{n} places · {v} visited', noAttr:'No attractions yet.', gettingThere:'Getting there', yourVisit:'Your visit', markVisited:'Mark as visited', markPlanned:'Move back to planned', logHint:'Mark this place as visited to log the date, a rating and your own photos.', addPhoto:'Add photo', today:'Today', km:'km', h:'h', min:'min', arrows:'Arrows', points:'Points', confirmDelete:'Delete "{name}"?', estimated:'est.', untitled:'Untitled destination', emptyFilter:'Nothing here yet.', photoN:'{n} photos', photo1:'1 photo', noPhoto:'destination photo', saved:'Saved', deleted:'Deleted' },
+  el: { appTitle:'Χάρτης Διακοπών', tripName:'Καλοκαίρι στην Ήπειρο', tripDates:'13–18 Ιουλ 2026', tabMap:'Χάρτης', tabList:'Μέρη', tabTrip:'Ταξίδι', tabSettings:'Ρυθμίσεις', destinations:'Προορισμοί', add:'+ Προσθήκη', addDest:'Προσθήκη προορισμού', editDest:'Επεξεργασία προορισμού', editHome:'Επεξεργασία κύριας τοποθεσίας', planned:'Σχεδιασμένο', visited:'Επισκέφθηκα', favorites:'Αγαπημένα', all:'Όλα', attractions:'Κύρια αξιοθέατα', photos:'Φωτογραφίες', links:'Σύνδεσμοι', notes:'Σημειώσεις', visitLog:'Ημερολόγιο επίσκεψης', visitedOn:'Ημερομηνία', rating:'Βαθμολογία', details:'Λεπτομέρειες', overview:'Επισκόπηση', log:'Ημερολόγιο', distance:'Απόσταση', drive:'Οδήγηση', fromHome:'από {home}', edit:'Επεξεργασία', delete:'Διαγραφή', cancel:'Ακύρωση', save:'Αποθήκευση', name:'Όνομα', location:'Τοποθεσία', lat:'Γεωγρ. πλάτος', lng:'Γεωγρ. μήκος', pick:'Επιλογή στον χάρτη', picking:'Πατήστε οπουδήποτε στον χάρτη για να ορίσετε την τοποθεσία…', needLoc:'Ορίστε πρώτα τοποθεσία.', attrPh:'Ένα ανά γραμμή', homeBase:'Βάση', language:'Γλώσσα', exportImg:'Εξαγωγή χάρτη ως εικόνα', aspect:'Αναλογία διαστάσεων', quality:'Ποιότητα εικόνας', exportBtn:'Εξαγωγή χάρτη', exported:'Η εικόνα αποθηκεύτηκε ({a}, {q})', dataHint:'Οι αλλαγές αποθηκεύονται μόνο σε αυτή τη συσκευή.', day:'Ημέρα', freeDay:'Ελεύθερη ημέρα', arrive:'Άφιξη στη βάση', visitedOf:'{v} από {n} επισκέψεις', placesLine:'{n} μέρη · {v} επισκέψεις', noAttr:'Δεν υπάρχουν αξιοθέατα ακόμη.', gettingThere:'Διαδρομή', yourVisit:'Η επίσκεψή σας', markVisited:'Σημείωση επίσκεψης', markPlanned:'Επιστροφή σε σχεδιασμένο', logHint:'Σημειώστε την επίσκεψη για να καταγράψετε ημερομηνία, βαθμολογία και φωτογραφίες.', addPhoto:'Προσθήκη', today:'Σήμερα', km:'χλμ', h:'ώ', min:'λεπ', arrows:'Βέλη', points:'Σημεία', confirmDelete:'Διαγραφή του «{name}»;', estimated:'εκτ.', untitled:'Προορισμός χωρίς όνομα', emptyFilter:'Τίποτα εδώ ακόμη.', photoN:'{n} φωτογραφίες', photo1:'1 φωτογραφία', noPhoto:'φωτογραφία προορισμού', saved:'Αποθηκεύτηκε', deleted:'Διαγράφηκε' },
+};
+const HOME0 = { name: 'Home Base — Igoumenitsa', lat: 39.50778, lng: 20.26306 };
+const DESTS0 = [
+  { id:'syvota', name:'Syvota (Zavia)', lat:39.4005, lng:20.2496, km:24.9, min:30, status:'visited', fav:true, date:{en:'Tue 14 Jul',el:'Τρι 14 Ιουλ'}, rating:5, note:'Calm turquoise water. Get there before 10:00 for parking.', mine:2, photos:['Zavia Above','Zavia Beach'], links:['Tripadvisor'], attractions:['Zavia Beach','Bella Vraka','Mega Ammos'] },
+  { id:'korfu', name:'Korfu', lat:39.4335, lng:19.9098, km:37.7, min:107, status:'visited', fav:false, date:{en:'Thu 16 Jul',el:'Πεμ 16 Ιουλ'}, rating:4, note:'Ferry from Igoumenitsa port. Old Town in the evening.', mine:1, photos:[], links:['Issos Beach'], attractions:['Old Town','Issos Beach'] },
+  { id:'nikopolis', name:'Nikopolis', lat:39.0258, lng:20.7325, km:79.4, min:70, status:'planned', fav:false, rating:0, note:'', mine:0, photos:['Theater'], links:[], attractions:['Ancient theatre','Odeon'] },
+  { id:'preveza', name:'Preveza', lat:38.9567, lng:20.7543, km:86.6, min:76, status:'planned', fav:false, rating:0, note:'', mine:0, photos:[], links:[], attractions:[] },
+  { id:'lefkada', name:'Lefkada (Porto Katsiki)', lat:38.6011, lng:20.5492, km:153.5, min:153, status:'planned', fav:true, rating:0, note:'', mine:0, photos:['Porto Katsiki #1','Porto Katsiki #2','Porto Katsiki #3'], links:['Porto Katsiki'], attractions:['Porto Katsiki','Egremni Beach'] },
+];
+const DAYS = [
+  { n:1, en:'Mon 13 Jul', el:'Δευ 13 Ιουλ', stops:[], note:'arrive' },
+  { n:2, en:'Tue 14 Jul', el:'Τρι 14 Ιουλ', stops:['syvota'] },
+  { n:3, en:'Wed 15 Jul', el:'Τετ 15 Ιουλ', stops:[], note:'free' },
+  { n:4, en:'Thu 16 Jul', el:'Πεμ 16 Ιουλ', stops:['korfu'] },
+  { n:5, en:'Fri 17 Jul', el:'Παρ 17 Ιουλ', stops:['nikopolis','preveza'] },
+  { n:6, en:'Sat 18 Jul', el:'Σαβ 18 Ιουλ', stops:['lefkada'] },
+];
+const fill = (s, o) => s.replace(/\{(\w+)\}/g, (_, k) => o[k]);
+const dur = (m, t) => { const h = Math.floor(m / 60), r = Math.round(m % 60); return h ? `${h} ${t.h} ${r} ${t.min}` : `${r} ${t.min}`; };
+const kmS = (d, t) => `${d.km.toFixed(1)} ${t.km}`;
+const route = (d, t) => `${kmS(d, t)} · ${dur(d.min, t)}${d.est ? ' (' + t.estimated + ')' : ''}`;
+const hav = (a, b) => { const R = 6371, r = Math.PI / 180, dLa = (b.lat - a.lat) * r, dLo = (b.lng - a.lng) * r; const x = Math.sin(dLa / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLo / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+let UID = 0;
+
+class Component extends DCLogic {
+  state = { tab:'map', screen:null, lang:'en', sel:null, mode:'arrows', filter:'all', home:HOME0, dests:DESTS0, form:null, formErr:false, picking:false, toast:null, aspect:'16:9', quality:'2x', dtab:'overview', confirmDel:false };
+  uid = ++UID;
+  componentDidMount() {
+    const f = { name: 'Parga', lat: '39.28470', lng: '20.39890', attr: 'Valtos Beach\nVenetian Castle', note: '' };
+    const S = { 'map-sel': { sel: 'syvota' }, list: { tab: 'list' }, trip: { tab: 'trip' }, settings: { tab: 'settings' },
+      detail: { sel: 'syvota', screen: { k: 'detail', id: 'syvota' } }, form: { screen: { k: 'form', kind: 'dest', id: null }, form: f },
+      pick: { screen: { k: 'form', kind: 'dest', id: null }, form: f, picking: true } }[this.props.start];
+    if (S) this.setState(S);
+  }
+  componentWillUnmount() { clearTimeout(this._tt); }
+  upd = (id, p) => this.setState(s => ({ dests: s.dests.map(d => d.id === id ? { ...d, ...p } : d) }));
+  showToast = m => { clearTimeout(this._tt); this.setState({ toast: m }); this._tt = setTimeout(() => this.setState({ toast: null }), 2600); };
+  openDetail = id => this.setState({ screen: { k: 'detail', id }, sel: id, dtab: 'overview' });
+  setStatus = (id, st) => { const t = STR[this.state.lang]; this.upd(id, st === 'visited' ? { status: 'visited', date: this.state.dests.find(d => d.id === id).date || { en: t.today, el: STR.el.today } } : { status: 'planned' }); };
+
+  mapEl(o) {
+    const R = React.createElement, { home, dests, mode } = this.state, sel = o.sel;
+    const pt = o.pt ?? 40, pb = o.pb ?? 40, px = o.px ?? 40;
+    const pr = (lat, lng) => ({ x: px + (lng - B.minLng) / (B.maxLng - B.minLng) * (o.w - 2 * px), y: pt + (B.maxLat - lat) / (B.maxLat - B.minLat) * (o.h - pt - pb) });
+    const h0 = pr(home.lat, home.lng), uid = 'vm' + this.uid + o.key;
+    const dark = !!o.dark, scale = o.small ? 0.8 : 1;
+    let arrows = null;
+    if (mode === 'arrows') {
+      const ps = dests.map((d, i) => {
+        const e = pr(d.lat, d.lng), dx = e.x - h0.x, dy = e.y - h0.y;
+        const bow = (i % 2 ? 1 : -1) * (0.18 + (i % 3) * 0.03);
+        const cx = (h0.x + e.x) / 2 - dy * bow, cy = (h0.y + e.y) / 2 + dx * bow;
+        const tx = e.x - cx, ty = e.y - cy, tl = Math.hypot(tx, ty) || 1, g = 14 * scale;
+        return { id: d.id, d: `M${h0.x} ${h0.y} Q${cx} ${cy} ${e.x - tx / tl * g} ${e.y - ty / tl * g}`, s: d.id === sel };
+      }).sort((a, b) => a.s - b.s);
+      const mk = (id, f, st, sz) => R('marker', { id, viewBox: '0 0 10 10', refX: 8, refY: 5, markerWidth: sz, markerHeight: sz, orient: 'auto-start-reverse' }, R('path', { d: 'M0,0 L10,5 L0,10 z', fill: f, stroke: st, strokeWidth: 0.6 }));
+      arrows = R('svg', { width: o.w, height: o.h, style: { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' } },
+        R('defs', null, mk(uid + 'a', '#ef5a2a', '#a83c17', 3.5), mk(uid + 'b', '#0c8a83', '#075e59', 4)),
+        ps.map(p => R('g', { key: p.id, opacity: p.s ? 1 : (sel ? 0.55 : 0.85) },
+          R('path', { d: p.d, fill: 'none', stroke: p.s ? '#075e59' : '#a83c17', strokeWidth: (p.s ? 3.5 : 2.5) * scale + 2, strokeLinecap: 'round' }),
+          R('path', { d: p.d, fill: 'none', stroke: p.s ? '#0c8a83' : '#ef5a2a', strokeWidth: (p.s ? 3.5 : 2.5) * scale, strokeLinecap: 'round', markerEnd: `url(#${uid}${p.s ? 'b' : 'a'})` }))));
+    }
+    const pin = (key, p, z, bg, inner, label, onClick, zi) => R('div', { key, onClick: e => { e.stopPropagation(); onClick && onClick(); }, style: { position: 'absolute', left: p.x, top: p.y, width: 0, height: 0, zIndex: zi, cursor: onClick ? 'pointer' : 'default' } },
+      R('div', { style: { position: 'absolute', left: -z / 2, top: -z * 1.25, width: z, height: z, borderRadius: '50% 50% 50% 0', transform: 'rotate(-45deg)', background: bg, border: '3px solid #fff', boxSizing: 'border-box', boxShadow: '0 2px 6px rgba(0,0,0,.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' } },
+        inner && R('span', { style: { transform: 'rotate(45deg)', color: '#fff', fontSize: z * 0.42, lineHeight: 1, fontFamily: inner.icon ? "'Material Symbols Rounded'" : 'inherit', fontWeight: 700 } }, inner.t)),
+      label && R('div', { style: { position: 'absolute', [p.x > o.w * 0.55 ? 'right' : 'left']: z / 2 + 4, top: -z * 1.25 + z / 2 - 11, whiteSpace: 'nowrap', fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 10, background: dark ? 'rgba(20,18,16,.82)' : 'rgba(255,255,255,.95)', color: dark ? '#fff' : '#2b2118', boxShadow: '0 1px 3px rgba(0,0,0,.15)', pointerEvents: 'none' } }, label));
+    const pins = dests.map(d => {
+      const s = d.id === sel, z = (s ? 30 : 24) * scale;
+      const bg = s ? 'linear-gradient(135deg,#2dd4c4,#0c8a83)' : 'linear-gradient(135deg,#ff8f66,#ef5a2a)';
+      return pin(d.id, pr(d.lat, d.lng), z, bg, d.status === 'visited' ? { icon: true, t: 'check' } : null, (o.labels || s) ? d.name : null, o.onPin ? () => o.onPin(d.id) : null, s ? 4 : 2);
+    });
+    const homePin = pin('home', h0, 34 * scale, 'linear-gradient(135deg,#ffd166,#ff7a4d)', { t: '★' }, o.labels && !o.small ? home.name.replace(/^.*— /, '') : null, null, 3);
+    const onClick = o.onPick ? e => {
+      const r = e.currentTarget.getBoundingClientRect(), k = r.width / o.w, x = (e.clientX - r.left) / k, y = (e.clientY - r.top) / k;
+      o.onPick(B.maxLat - (y - pt) / (o.h - pt - pb) * (B.maxLat - B.minLat), B.minLng + (x - px) / (o.w - 2 * px) * (B.maxLng - B.minLng));
+    } : (o.onBg || null);
+    const line = dark ? 'rgba(255,255,255,.05)' : 'rgba(43,33,24,.05)';
+    return R('div', { onClick, style: { position: 'relative', width: o.w, height: o.h, overflow: 'hidden', cursor: o.onPick ? 'crosshair' : 'default', background: dark ? '#22282a' : '#eaefe9', backgroundImage: `linear-gradient(${line} 1px,transparent 1px),linear-gradient(90deg,${line} 1px,transparent 1px),repeating-linear-gradient(135deg,${dark ? 'rgba(255,255,255,.018)' : 'rgba(43,33,24,.022)'} 0 2px,transparent 2px 9px)`, backgroundSize: '44px 44px,44px 44px,auto' } },
+      arrows, homePin, pins,
+      R('div', { style: { position: 'absolute', right: 6, bottom: o.attrBottom ?? 4, font: '500 9px ui-monospace,Menlo,monospace', color: dark ? 'rgba(255,255,255,.4)' : 'rgba(43,33,24,.45)' } }, 'stylized map · © OpenStreetMap'));
+  }
+
+  renderVals() {
+    const v = this.props.variant ?? 'a', s = this.state, t = STR[s.lang], L = s.lang;
+    const isA = v === 'a', isB = v === 'b', isC = v === 'c';
+    const main = !s.screen && !s.picking;
+    const stLabel = d => d.status === 'visited' ? t.visited : t.planned;
+    const decorate = (d, i) => ({
+      ...d, route: route(d, t), statusLabel: stLabel(d),
+      dot: d.status === 'visited' ? '#0c8a83' : '#ef5a2a', icon: d.status === 'visited' ? 'check' : 'location_on',
+      chipBg: d.status === 'visited' ? '#e3f1ef' : '#fde9e0', chipColor: d.status === 'visited' ? '#0c8a83' : '#ef5a2a',
+      favColor: d.fav ? '#e63946' : '#c9b89e', favFill: d.fav ? 1 : 0,
+      ratingText: d.status === 'visited' && d.rating ? '★'.repeat(d.rating) : '',
+      rowBg: d.id === s.sel ? '#e3f1ef' : '#fff', rowBorder: d.id === s.sel ? 'rgba(15,169,160,.45)' : '#efe4d2',
+      open: () => this.openDetail(d.id), select: () => this.setState({ sel: d.id }),
+      selectOrOpen: () => s.sel === d.id ? this.openDetail(d.id) : this.setState({ sel: d.id }),
+      toggleFav: e => { e && e.stopPropagation(); this.upd(d.id, { fav: !d.fav }); },
+    });
+    const dests = s.dests.map(decorate);
+    const byId = Object.fromEntries(dests.map(d => [d.id, d]));
+    const visitedN = dests.filter(d => d.status === 'visited').length;
+    const selD = s.sel ? byId[s.sel] : null;
+    const cIdx = Math.max(0, dests.findIndex(d => d.id === s.sel));
+    const cSelD = dests[cIdx];
+    const step = k => () => { const n = dests.length; if (n) this.setState({ sel: dests[(cIdx + k + n) % n].id }); };
+
+    const tabDefs = [['map', 'map', t.tabMap], ['list', 'pin_drop', t.tabList], ['trip', 'luggage', t.tabTrip], ['settings', 'settings', t.tabSettings]];
+    const tabs = tabDefs.map(([k, icon, label]) => { const a = s.tab === k; return { k, icon, label, active: a, on: () => this.setState({ tab: k }), fill: a ? 1 : 0,
+      aBg: a ? '#cfe9e6' : 'transparent', aIcon: a ? '#075e59' : '#5c4f40', weight: a ? 700 : 500,
+      flex: a ? 2.2 : 1, bBg: a ? '#ff7a4d' : 'transparent', bColor: a ? '#fff' : '#e9dccb',
+      dot: a ? '#ef5a2a' : 'transparent', cColor: a ? '#2b2118' : '#8a7a63' }; });
+
+    const counts = { all: dests.length, planned: dests.length - visitedN, visited: visitedN, fav: dests.filter(d => d.fav).length };
+    const filters = [['all', t.all], ['planned', t.planned], ['visited', t.visited], ['fav', t.favorites]].map(([k, label]) => { const a = s.filter === k; return { label, n: counts[k], on: () => this.setState({ filter: k }), bg: a ? '#2b2118' : '#fff', color: a ? '#fff' : '#2b2118', border: a ? '#2b2118' : '#efe4d2' }; });
+    const listDests = dests.filter(d => s.filter === 'all' || (s.filter === 'fav' ? d.fav : d.status === s.filter));
+
+    const days = DAYS.map(dy => { const stops = dy.stops.filter(id => byId[id]).map(id => byId[id]); const done = stops.length && stops.every(x => x.status === 'visited');
+      return { n: dy.n, date: dy[L], stops, empty: !stops.length, note: dy.note === 'arrive' ? t.arrive : t.freeDay, circleBg: done ? '#0c8a83' : (stops.length ? '#fff' : '#f4eee5'), circleColor: done ? '#fff' : '#2b2118' }; });
+    const scheduled = new Set(DAYS.flatMap(d => d.stops));
+    const extra = dests.filter(d => !scheduled.has(d.id));
+    if (extra.length) days.push({ n: '+', date: L === 'el' ? 'Χωρίς ημέρα' : 'Not scheduled', stops: extra, empty: false, note: '', circleBg: '#f4eee5', circleColor: '#8a7a63' });
+
+    let d = null;
+    if (s.screen && s.screen.k === 'detail' && byId[s.screen.id]) {
+      const x = byId[s.screen.id], idx = dests.indexOf(x);
+      d = { ...x, km: kmS(x, t), dur: dur(x.min, t) + (x.est ? ' (' + t.estimated + ')' : ''), fromHome: fill(t.fromHome, { home: s.home.name }),
+        visited: x.status === 'visited', planned: x.status !== 'visited', date: x.date ? x.date[L] : '',
+        heroCaption: x.photos[0] || t.noPhoto, photoCount: x.photos.length + x.mine === 1 ? t.photo1 : fill(t.photoN, { n: x.photos.length + x.mine }),
+        counter: `${String(idx + 1).padStart(2, '0')} / ${String(dests.length).padStart(2, '0')}`,
+        attractions: x.attractions.map((n, i) => ({ name: n, num: String(i + 1).padStart(2, '0') })), noAttr: !x.attractions.length,
+        photos: x.photos.map(c => ({ caption: c })), hasPhotos: x.photos.length > 0, links: x.links.map(l => ({ label: l })), hasLinks: x.links.length > 0,
+        mine: Array.from({ length: x.mine }, (_, i) => ({ i })), addMine: () => this.upd(x.id, { mine: x.mine + 1 }),
+        stars: [1, 2, 3, 4, 5].map(n => ({ on: () => this.upd(x.id, { rating: n }), fill: n <= x.rating ? 1 : 0, color: n <= x.rating ? '#ff9f52' : '#d9cbb5', colorDark: n <= x.rating ? '#ffc857' : 'rgba(255,255,255,.25)' })),
+        statusOpts: [['planned', 'event', t.planned], ['visited', 'check_circle', t.visited]].map(([k, icon, label]) => { const a = x.status === k; return { icon, label, on: () => this.setStatus(x.id, k), bg: a ? '#fff' : 'transparent', color: a ? (k === 'visited' ? '#0c8a83' : '#ef5a2a') : '#8a7a63', shadow: a ? '0 1px 3px rgba(120,72,20,.12)' : 'none' }; }),
+        markVisited: () => this.setStatus(x.id, 'visited'), unvisit: () => this.setStatus(x.id, 'planned'),
+        edit: () => this.setState({ screen: { k: 'form', kind: 'dest', id: x.id }, form: { name: x.name, lat: String(x.lat), lng: String(x.lng), attr: x.attractions.join('\n'), note: x.note }, formErr: false }),
+      };
+    }
+    const dtabs = [['overview', t.overview], ['photos', t.photos], ['log', t.log]].map(([k, label]) => { const a = s.dtab === k; return { label, on: () => this.setState({ dtab: k }), line: a ? '#0c8a83' : 'transparent', color: a ? '#0c8a83' : '#8a7a63' }; });
+
+    const f = s.form || {};
+    const isForm = !!(s.screen && s.screen.k === 'form');
+    const fset = k => e => this.setState({ form: { ...this.state.form, [k]: e.target.value }, formErr: false });
+    const form = { ...f, isDest: isForm && s.screen.kind === 'dest', title: !isForm ? '' : s.screen.kind === 'home' ? t.editHome : (s.screen.id ? t.editDest : t.addDest),
+      namePh: t.untitled, onName: fset('name'), onLat: fset('lat'), onLng: fset('lng'), onAttr: fset('attr'), onNote: fset('note'), hasErr: s.formErr, locBorder: s.formErr ? '#e63946' : '#efe4d2' };
+
+    const saveForm = () => {
+      const st = this.state, sc = st.screen, fm = st.form, lat = parseFloat(fm.lat), lng = parseFloat(fm.lng);
+      if (!isFinite(lat) || !isFinite(lng)) return this.setState({ formErr: true });
+      if (sc.kind === 'home') { this.setState({ home: { name: fm.name || STR[st.lang].homeBase, lat, lng }, screen: null, form: null }); return this.showToast(STR[st.lang].saved); }
+      const km = hav(st.home, { lat, lng }) * 1.3;
+      const patch = { name: fm.name || STR[st.lang].untitled, lat, lng, attractions: (fm.attr || '').split('\n').map(x => x.trim()).filter(Boolean), note: fm.note || '' };
+      const moved = sc.id && (() => { const o = st.dests.find(x => x.id === sc.id); return o.lat !== lat || o.lng !== lng; })();
+      if (!sc.id || moved) Object.assign(patch, { km, min: km / 65 * 60, est: true });
+      if (sc.id) { this.upd(sc.id, patch); this.setState({ screen: { k: 'detail', id: sc.id } }); }
+      else { const id = 'd' + Date.now(); this.setState({ dests: [...st.dests, { id, status: 'planned', fav: false, rating: 0, mine: 0, photos: [], links: [], ...patch }], screen: { k: 'detail', id }, sel: id }); }
+      this.setState({ form: null }); this.showToast(STR[st.lang].saved);
+    };
+
+    const opt = (cur, key) => arr => arr.map(x => { const a = cur === x; return { label: x, on: () => this.setState({ [key]: x }), bg: a ? '#e3f1ef' : '#fff', color: a ? '#0c8a83' : '#2b2118', border: a ? 'rgba(15,169,160,.5)' : '#efe4d2' }; });
+    const navBShown = isB && main;
+
+    return {
+      t, langCode: L === 'en' ? 'EN' : 'ΕΛ', toggleLang: () => this.setState({ lang: L === 'en' ? 'el' : 'en' }),
+      modeIcon: s.mode === 'arrows' ? 'conversion_path' : 'scatter_plot', modeLabel: s.mode === 'arrows' ? t.arrows : t.points,
+      toggleMode: () => this.setState({ mode: s.mode === 'arrows' ? 'points' : 'arrows' }),
+      showMapA: isA && s.tab === 'map', showMapB: isB && s.tab === 'map', showMapC: isC && s.tab === 'map',
+      showList: s.tab === 'list', showTrip: s.tab === 'trip', showSettings: s.tab === 'settings',
+      navA: isA && main, navB: navBShown, navC: isC && main, tabs,
+      mapA: isA && s.tab === 'map' ? this.mapEl({ key: 'a', w: 396, h: 732, pt: 100, pb: s.sel ? 200 : 150, labels: true, sel: s.sel, onPin: id => this.setState({ sel: id }), onBg: () => this.setState({ sel: null }), attrBottom: s.sel ? 186 : 132 }) : null,
+      mapB: isB && s.tab === 'map' ? this.mapEl({ key: 'b', w: 362, h: 258, pt: 30, pb: 12, px: 30, small: true, sel: s.sel, onPin: id => this.setState({ sel: id }) }) : null,
+      mapC: isC && s.tab === 'map' ? this.mapEl({ key: 'c', w: 396, h: 748, pt: 190, pb: 210, dark: true, labels: true, sel: cSelD && cSelD.id, onPin: id => this.setState({ sel: id }), attrBottom: 196 }) : null,
+      mapMini: d && isB ? this.mapEl({ key: 'mini', w: 362, h: 150, pt: 30, pb: 8, px: 24, small: true, sel: d.id }) : null,
+      mapPick: s.picking ? this.mapEl({ key: 'p', w: 396, h: 812, pt: 110, pb: 60, labels: true, sel: null, onPick: (lat, lng) => this.setState({ picking: false, form: { ...this.state.form, lat: lat.toFixed(5), lng: lng.toFixed(5) }, formErr: false }) }) : null,
+      dests, destCount: dests.length, hasSel: !!selD, noSel: !selD,
+      sel: selD ? { ...selD } : { name: '', route: '', statusLabel: '', open: null },
+      clearSel: () => this.setState({ sel: null }),
+      cSel: cSelD ? { ...cSelD, counter: `${String(cIdx + 1).padStart(2, '0')} / ${String(dests.length).padStart(2, '0')}` } : { name: '', route: '', statusLabel: '', counter: '' },
+      prevSel: step(-1), nextSel: step(1),
+      placesLine: fill(t.placesLine, { n: dests.length, v: visitedN }), visitedLine: fill(t.visitedOf, { n: dests.length, v: visitedN }),
+      progress: dests.length ? Math.round(visitedN / dests.length * 100) : 0,
+      filters, listDests, listEmpty: !listDests.length, fabBottom: isB ? 96 : 16,
+      days, home: { ...s.home, coords: `${s.home.lat.toFixed(5)}, ${s.home.lng.toFixed(5)}` },
+      openHome: () => this.setState({ screen: { k: 'form', kind: 'home' }, form: { name: s.home.name, lat: String(s.home.lat), lng: String(s.home.lng) }, formErr: false }),
+      langs: [['en', 'English'], ['el', 'Ελληνικά']].map(([k, label]) => { const a = L === k; return { label, on: () => this.setState({ lang: k }), bg: a ? '#fff' : 'transparent', color: a ? '#0c8a83' : '#8a7a63', shadow: a ? '0 1px 3px rgba(120,72,20,.12)' : 'none' }; }),
+      aspects: opt(s.aspect, 'aspect')(['Free', '16:9', '4:3', '1:1']), qualities: opt(s.quality, 'quality')(['2x', '3x', '4x']),
+      exportImage: () => this.showToast(fill(t.exported, { a: s.aspect, q: s.quality })),
+      showDetailA: !!d && isA, showDetailB: !!d && isB, showDetailC: !!d && isC,
+      d: d || { stars: [], statusOpts: [], attractions: [], photos: [], links: [], mine: [] }, dtabs, dtOverview: s.dtab === 'overview', dtPhotos: s.dtab === 'photos', dtLog: s.dtab === 'log',
+      back: () => this.setState(st => st.screen && st.screen.k === 'form' && st.screen.id ? { screen: { k: 'detail', id: st.screen.id }, form: null } : { screen: null, form: null }),
+      showForm: isForm, form, saveForm, startPick: () => this.setState({ picking: true }), cancelPick: () => this.setState({ picking: false }), picking: s.picking,
+      openAdd: () => this.setState({ screen: { k: 'form', kind: 'dest', id: null }, form: { name: '', lat: '', lng: '', attr: '', note: '' }, formErr: false }),
+      askDelete: () => this.setState({ confirmDel: true }), cancelDelete: () => this.setState({ confirmDel: false }),
+      confirmDel: s.confirmDel && !!d, delTitle: d ? fill(t.confirmDelete, { name: d.name }) : '',
+      doDelete: e => { e.stopPropagation(); const id = this.state.screen.id; this.setState(st => ({ dests: st.dests.filter(x => x.id !== id), screen: null, sel: null, confirmDel: false })); this.showToast(t.deleted); },
+      hasToast: !!s.toast, toast: s.toast, toastBottom: main ? (isB ? 96 : 16) : 24,
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -9,6 +9,8 @@ interface CurvedArrowsOverlayProps {
   mainLocation: MainLocation;
   destinations: Destination[];
   selectedDestinationId: string | null;
+  /** stroke widths at REF_ZOOM for [other, selected] arrows */
+  baseStrokeWidths?: [number, number];
 }
 
 // Above markerPane (600) so arrows draw over the pins, below tooltipPane (650)
@@ -36,6 +38,7 @@ export function CurvedArrowsOverlay({
   mainLocation,
   destinations,
   selectedDestinationId,
+  baseStrokeWidths = [2.5, 3.5],
 }: CurvedArrowsOverlayProps) {
   const map = useMap();
   const svgRef = useRef<SVGSVGElement>(null);
@@ -168,7 +171,7 @@ export function CurvedArrowsOverlay({
           markerHeight="3.5"
           orient="auto-start-reverse"
         >
-          <path d="M0,0 L10,5 L0,10 z" fill="#e0563f" stroke="#9c3423" strokeWidth="0.6" />
+          <path d="M0,0 L10,5 L0,10 z" fill="#ef5a2a" stroke="#a83c17" strokeWidth="0.6" />
         </marker>
         <marker
           id="vm-arrowhead-selected"
@@ -179,27 +182,28 @@ export function CurvedArrowsOverlay({
           markerHeight="4"
           orient="auto-start-reverse"
         >
-          <path d="M0,0 L10,5 L0,10 z" fill="#2563eb" stroke="#1e40af" strokeWidth="0.6" />
+          <path d="M0,0 L10,5 L0,10 z" fill="#0c8a83" stroke="#075e59" strokeWidth="0.6" />
         </marker>
       </defs>
       <g filter="url(#vm-arrow-shadow)">
         {paths.map((p) => {
-          const baseWidth = p.selected ? 3.5 : 2.5;
+          const baseWidth = baseStrokeWidths[p.selected ? 1 : 0];
           const strokeWidth = Math.min(Math.max(baseWidth * zoomScale, MIN_STROKE), MAX_STROKE);
           return (
-            <g key={p.id} opacity={p.selected ? 1 : 0.85}>
+            // with a selection, the other arrows recede so the highlighted one reads first
+            <g key={p.id} opacity={p.selected ? 1 : selectedDestinationId ? 0.55 : 0.85}>
               {/* casing: 1px border on each side of the colored stroke */}
               <path
                 d={p.d}
                 fill="none"
-                stroke={p.selected ? '#1e40af' : '#9c3423'}
+                stroke={p.selected ? '#075e59' : '#a83c17'}
                 strokeWidth={strokeWidth + 2}
                 strokeLinecap="round"
               />
               <path
                 d={p.d}
                 fill="none"
-                stroke={p.selected ? '#2563eb' : '#e0563f'}
+                stroke={p.selected ? '#0c8a83' : '#ef5a2a'}
                 strokeWidth={strokeWidth}
                 strokeLinecap="round"
                 markerEnd={p.selected ? 'url(#vm-arrowhead-selected)' : 'url(#vm-arrowhead)'}

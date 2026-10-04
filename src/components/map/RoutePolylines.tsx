@@ -35,8 +35,8 @@ export function RoutePolylines({
           [mainLocation.location.lat, mainLocation.location.lng],
           [dest.location.lat, dest.location.lng],
         ];
-        const color = selected ? '#2563eb' : '#e0563f';
-        const casing = selected ? '#1e40af' : '#9c3423';
+        const color = selected ? '#0c8a83' : '#ef5a2a';
+        const casing = selected ? '#075e59' : '#a83c17';
         // key encodes everything that changes rendering structure, so Leaflet
         // remounts the polylines (and keeps selected on top) when it changes
         const key = `${dest.id}-${geometry ? 'geo' : 'pending'}-${dashed ? 'dash' : 'solid'}-${selected ? 'sel' : ''}`;

@@ -1,0 +1,340 @@
+/* Mobile shell (direction 1a "Material"), rendered below 1024px wide:
+   tab screens, bottom navigation and full-screen layers. Shared screen
+   styles live in screens/screens.css. */
+
+.vm-mobile-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.vm-mobile-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vm-mobile-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- bottom navigation ---------- */
+
+.vm-mobile-nav {
+  flex: none;
+  display: flex;
+  height: 80px;
+  box-sizing: content-box;
+  padding: 0 8px env(safe-area-inset-bottom);
+  background: var(--surface-3);
+}
+
+.vm-mobile-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--text);
+}
+
+.vm-mobile-nav-indicator {
+  width: 64px;
+  height: 32px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5c4f40;
+  transition: background-color 0.2s ease;
+}
+
+.vm-mobile-nav-item-active .vm-mobile-nav-indicator {
+  background: var(--accent-2-indicator);
+  color: var(--accent-2-dark);
+}
+
+.vm-mobile-nav-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.vm-mobile-nav-item-active .vm-mobile-nav-label {
+  font-weight: 700;
+}
+
+/* ---------- map screen ---------- */
+
+.vm-mobile-map-screen .vm-map-container {
+  background: #eaefe9;
+}
+
+/* attribution stays visible just above the carousel / selected card */
+
+.vm-mobile-map-screen .leaflet-bottom.leaflet-right {
+  bottom: 110px;
+  transition: bottom 0.2s ease;
+}
+
+.vm-mobile-map-screen-selected .leaflet-bottom.leaflet-right {
+  bottom: 168px;
+}
+
+.vm-mobile-topbar {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  z-index: 1000; /* above Leaflet panes */
+  height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 6px 0 18px;
+  background: var(--surface);
+  border-radius: 26px;
+  box-shadow: var(--shadow-md);
+}
+
+.vm-mobile-topbar-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vm-mobile-round-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 20px;
+  background: var(--surface-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.vm-mobile-lang-btn {
+  height: 40px;
+  min-width: 44px;
+  padding: 0 8px;
+  border-radius: 20px;
+  background: var(--surface-3);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.vm-mobile-carousel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
+  z-index: 1000;
+  display: flex;
+  gap: 10px;
+  padding: 4px 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  scroll-padding: 0 12px;
+}
+
+.vm-mobile-carousel-card {
+  flex: none;
+  width: 190px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  text-align: left;
+  background: var(--surface);
+  border-radius: 18px;
+  box-shadow: var(--shadow-md);
+  scroll-snap-align: start;
+}
+
+.vm-mobile-carousel-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.vm-mobile-carousel-name {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vm-mobile-carousel-route {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.vm-mobile-carousel-add {
+  flex: none;
+  width: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 18px;
+  background: var(--accent);
+  color: #fff;
+  box-shadow: var(--shadow-md);
+}
+
+.vm-mobile-selected-card {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  background: var(--surface);
+  border-radius: 22px;
+  box-shadow: var(--shadow-lg);
+  animation: vm-rise 0.25s var(--ease-emphasized);
+}
+
+.vm-mobile-selected-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.vm-mobile-selected-photo {
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+}
+
+.vm-mobile-selected-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.vm-mobile-selected-name {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.vm-mobile-selected-route {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-2);
+}
+
+.vm-mobile-selected-status {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.vm-mobile-selected-close {
+  width: 36px;
+  height: 36px;
+  align-self: flex-start;
+  color: var(--text-muted);
+}
+
+/* offscreen map used to render exports at the chosen size */
+
+.vm-mobile-export-stage {
+  position: fixed;
+  top: 0;
+  left: -20000px;
+  pointer-events: none;
+}
+
+/* ---------- full-screen layers ---------- */
+
+.vm-mobile-layer-host {
+  position: absolute;
+  inset: 0;
+}
+
+.vm-mobile-layer-host-detail {
+  z-index: 1020;
+}
+
+.vm-mobile-layer-host-destination-form,
+.vm-mobile-layer-host-home-form {
+  z-index: 1030;
+}
+
+.vm-mobile-layer-host-pick {
+  z-index: 1040;
+}
+
+.vm-mobile-layer-host-confirm-delete {
+  z-index: 1050;
+}
+
+.vm-mobile-pick {
+  animation: vm-fade 0.2s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vm-mobile-pick,
+  .vm-mobile-selected-card {
+      animation: none;
+}
+}
+
+/* ---------- pick on map ---------- */
+
+.vm-mobile-pick .leaflet-container,
+.vm-mobile-pick .leaflet-container.leaflet-grab {
+  cursor: crosshair;
+}
+
+.vm-mobile-pick-banner {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top));
+  left: 12px;
+  right: 12px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px 12px 16px;
+  border-radius: 18px;
+  background: var(--accent-2);
+  color: #fff;
+  box-shadow: 0 6px 20px rgba(12, 138, 131, 0.3);
+}
+
+.vm-mobile-pick-text {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.vm-mobile-pick-banner .vm-circle-btn {
+  width: 36px;
+  height: 36px;
+  color: #fff;
+}
+
+.vm-mobile-toast-raised {
+  bottom: 24px;
+}

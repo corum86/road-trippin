@@ -13,7 +13,7 @@ interface OsrmRouteResponse {
   }>;
 }
 
-function estimateFromStraightLine(from: LatLng, to: LatLng): RouteInfo {
+export function estimateFromStraightLine(from: LatLng, to: LatLng): RouteInfo {
   const distanceMeters = haversineDistanceMeters(from, to);
   const durationSeconds = (distanceMeters / 1000 / ASSUMED_FALLBACK_SPEED_KMH) * 3600;
   return {

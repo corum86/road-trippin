@@ -1,7 +1,9 @@
 import { useRef, useState } from 'react';
 import { useMapDataStore } from '../../store/mapDataStore';
+import { useI18n } from '../../i18n/context';
 
 export function DataImportExportControls() {
+  const { t } = useI18n();
   const data = useMapDataStore((s) => s.data);
   const replaceAllData = useMapDataStore((s) => s.replaceAllData);
   const resetToBundledDefaults = useMapDataStore((s) => s.resetToBundledDefaults);
@@ -40,32 +42,38 @@ export function DataImportExportControls() {
           !json.mainLocation ||
           !Array.isArray(json.destinations)
         ) {
-          throw new Error('File does not match the expected vacation data format.');
+          throw new Error(t('data.invalidFormat'));
         }
         replaceAllData(json);
         setImportError(null);
       } catch (err) {
-        setImportError(err instanceof Error ? err.message : 'Failed to import file.');
+        setImportError(err instanceof Error ? err.message : t('data.importFailed'));
       }
     };
-    reader.onerror = () => setImportError('Failed to read file.');
+    reader.onerror = () => setImportError(t('data.readFailed'));
     reader.readAsText(file);
   }
 
   function handleReset() {
-    if (window.confirm('Reset all data to the bundled defaults? Your current edits in this browser will be lost unless exported first.')) {
+    if (window.confirm(t('data.confirmReset'))) {
       resetToBundledDefaults();
     }
   }
 
+  // laid out as a row of Settings option buttons
   return (
     <div className="vm-data-controls">
-      <button type="button" onClick={handleExport} title="Download current data as a JSON file">
-        Export data
-      </button>
-      <button type="button" onClick={handleImportClick} title="Load data from a JSON file">
-        Import data
-      </button>
+      <div className="vm-options">
+        <button type="button" className="vm-option" onClick={handleExport} title={t('data.exportTitle')}>
+          {t('data.export')}
+        </button>
+        <button type="button" className="vm-option" onClick={handleImportClick} title={t('data.importTitle')}>
+          {t('data.import')}
+        </button>
+        <button type="button" className="vm-option vm-option-danger" onClick={handleReset} title={t('data.resetTitle')}>
+          {t('data.reset')}
+        </button>
+      </div>
       <input
         ref={fileInputRef}
         type="file"
@@ -73,11 +81,11 @@ export function DataImportExportControls() {
         style={{ display: 'none' }}
         onChange={handleFileChange}
       />
-      <button type="button" className="vm-btn-secondary" onClick={handleReset} title="Reset to bundled defaults">
-        Reset
-      </button>
-      {importError && <span className="vm-import-error">{importError}</span>}
-      <span className="vm-data-hint">Edits save to this browser only — export to back up.</span>
+      {importError && (
+        <div className="vm-form-error" role="alert">
+          {importError}
+        </div>
+      )}
     </div>
   );
 }

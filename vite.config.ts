@@ -7,5 +7,12 @@ export default defineConfig({
   server: {
     host: true,
     port: 5173,
+    // Native fs-change events don't reliably propagate across the
+    // devcontainer/WSL bind mount, so HMR silently serves stale files
+    // without this — fall back to polling.
+    watch: {
+      usePolling: true,
+      interval: 300,
+    },
   },
 })

@@ -1,32 +1,54 @@
 :root {
-  --text: #1f2430;
-  --text-muted: #6b7280;
-  --bg: #ffffff;
-  --panel-bg: #f8f9fb;
-  --border: #e2e4e9;
-  --accent: #2563eb;
-  --danger: #dc2626;
+  --text: #2b2118;
+  --text-muted: #8a7a63;
+  --text-faint: #c9b89e;
+  --bg: #fbf8f3;
+  --surface: #ffffff;
+  --surface-2: #f6efe4;
+  --surface-3: #f4eee5;
+  --panel-bg: #fff3e2;
+  --panel-bg-raised: var(--surface);
+  --border: #efe4d2;
+  --border-hover: #d9c7aa;
+  --accent: #ef5a2a;
+  --accent-soft: #ff7a4d;
+  --accent-strong: #ef5a2a;
+  --accent-tint: #fde9e0;
+  --accent-2: #0c8a83;
+  --accent-2-strong: #0c8a83;
+  --accent-2-dark: #075e59;
+  --accent-2-tint: #e3f1ef;
+  --accent-2-indicator: #cfe9e6;
+  --star: #ff9f52;
+  --star-empty: #d9cbb5;
+  --danger: #e63946;
+  --danger-tint: #fbe3e5;
+  --success: #16a34a;
 
-  font: 15px/1.45 system-ui, 'Segoe UI', Roboto, sans-serif;
-  color-scheme: light dark;
+  --shadow-sm: 0 1px 3px rgba(120, 72, 20, 0.12);
+  --shadow-md: 0 4px 16px rgba(120, 72, 20, 0.14);
+  --shadow-lg: 0 8px 28px rgba(120, 72, 20, 0.18);
+  --shadow-fab: 0 6px 20px rgba(239, 90, 42, 0.35);
+  --shadow-floating: 0 12px 40px rgba(120, 72, 20, 0.22);
+
+  /* Material 3 "emphasized" easing for screens sliding in */
+  --ease-emphasized: cubic-bezier(0.2, 0, 0, 1);
+
+  --font-mono: ui-monospace, Menlo, monospace;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+
+  font: 15px/1.45 'Poppins', system-ui, 'Segoe UI', Roboto, sans-serif;
+  color-scheme: light;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #e5e7eb;
-    --text-muted: #9ca3af;
-    --bg: #14161b;
-    --panel-bg: #1b1e25;
-    --border: #2e313a;
-    --accent: #60a5fa;
-    --danger: #f87171;
-  }
 }
 
 * {
@@ -53,5 +75,46 @@ button {
 }
 
 a {
-  color: var(--accent);
+  color: var(--accent-2-strong);
+  font-weight: 600;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--accent) 35%, var(--border));
+  border-radius: var(--radius-pill);
+}
+
+/* Material Symbols Rounded (loaded in index.html) */
+.vm-icon {
+  font-family: 'Material Symbols Rounded';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  font-variation-settings: 'FILL' 0;
+  user-select: none;
+  flex: none;
+}
+
+.vm-icon-filled {
+  font-variation-settings: 'FILL' 1;
 }
