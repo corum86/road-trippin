@@ -1,15 +1,18 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import type {
   Destination,
   DestinationDraft,
+  LatLng,
   LinkItem,
   MainLocation,
   Photo,
   PickedLocation,
 } from '../../types/models';
 import { useI18n } from '../../i18n/context';
+import type { PlaceMatch } from '../../services/photonService';
 import { Icon } from '../ui/Icon';
+import { PlaceSearchInput } from '../ui/PlaceSearchInput';
 import { SectionLabel } from '../ui/SectionLabel';
 
 type LocationFormScreenProps = {
@@ -20,6 +23,8 @@ type LocationFormScreenProps = {
   pickedLocation: PickedLocation | null;
   onConsumePickedLocation: () => void;
   onStartPicking: () => void;
+  /** the name search suggests places around here first (the trip's region) */
+  searchNear?: LatLng | null;
   onClose: () => void;
 } & (
   | { kind: 'destination'; initial: Destination | null; onSave: (draft: DestinationDraft) => void }
@@ -35,8 +40,10 @@ function parseCoordinate(text: string, limit: number): number | null {
 }
 
 export function LocationFormScreen(props: LocationFormScreenProps) {
-  const { variant, picking = false, pickedLocation, onConsumePickedLocation, onStartPicking, onClose } = props;
+  const { variant, picking = false, pickedLocation, onConsumePickedLocation, onStartPicking, searchNear, onClose } =
+    props;
   const { t } = useI18n();
+  const nameId = useId();
   const isDesktop = variant === 'desktop';
   const isDestination = props.kind === 'destination';
   const dest = props.kind === 'destination' ? props.initial : null;
@@ -62,6 +69,14 @@ export function LocationFormScreen(props: LocationFormScreenProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickedLocation]);
+
+  // a place found by name fills in what a pick on the map would
+  function handleSearchSelect(place: PlaceMatch) {
+    setName(place.name);
+    setLat(place.location.lat.toFixed(5));
+    setLng(place.location.lng.toFixed(5));
+    setLocationError(false);
+  }
 
   const title =
     props.kind === 'home'
@@ -126,15 +141,17 @@ export function LocationFormScreen(props: LocationFormScreenProps) {
           handleSave();
         }}
       >
-        <label className="vm-field">
-          {t('form.name')}
-          <input
-            className="vm-input"
+        <div className="vm-field">
+          <label htmlFor={nameId}>{t('form.name')}</label>
+          <PlaceSearchInput
+            id={nameId}
             value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={isDestination ? t('form.untitledDestination') : t('form.homeBase')}
+            onChange={setName}
+            onSelect={handleSearchSelect}
+            placeholder={t('form.searchPlaceholder')}
+            near={searchNear}
           />
-        </label>
+        </div>
 
         <div className={`vm-card vm-location-card${locationError ? ' vm-location-card-error' : ''}`}>
           <SectionLabel>{t('form.location')}</SectionLabel>

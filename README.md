@@ -24,7 +24,7 @@ Production build: `npm run build`, then `npm run preview` to serve the static `d
 - **Destination details** — click a destination (marker or sidebar list) to see:
   - Route length and driving time, fetched once per destination from the free [OSRM demo server](https://router.project-osrm.org) and cached. If the request fails, a straight-line estimate is shown instead and clearly labeled.
   - Main attractions, notes, a photo gallery (image URLs, click to enlarge), and links.
-- **Editing** — add/edit/delete destinations and edit the main location entirely in the UI, including "📍 Pick on map": while picking, the cities and towns in view (villages too once zoomed in) appear as selectable name pills — choosing one fills in the name and its coordinates; clicking any other spot sets just the coordinates.
+- **Editing** — add/edit/delete destinations and edit the main location entirely in the UI, including "📍 Pick on map": while picking, the cities and towns in view (villages too once zoomed in) appear as selectable name pills — choosing one fills in the name and its coordinates; clicking any other spot sets just the coordinates. The **Name** field also searches as you type: from the second letter on it lists matching places (towns, beaches, addresses…), those around your home base first, and picking one fills in the name and coordinates. Ignore the list to keep a name of your own.
 - **Persistence** — data seeds from [public/data/vacation-data.json](public/data/vacation-data.json) on first load and is kept in your browser's localStorage, so the app opens instantly and works offline. With a database configured (see [Cloud sync](#cloud-sync-mongodb)), every change is also saved to MongoDB and can be shared between devices; without one, edits stay in the browser only. *Export data* downloads a JSON backup; to make your edits the new defaults, replace `public/data/vacation-data.json` with the exported file. *Import data* loads a previously exported JSON; *Reset* clears the app — it deletes every place, the trip and the home base (after asking), keeping only the language. The seed file is not touched by a reset: it stays as the first-load data and as a fixture for testing, and can be brought back any time with *Import data*.
 - **Aspect ratio & orientation** — toolbar icon buttons constrain the map to 16:9, 4:3, or 1:1 in landscape or portrait (or free-fill). The map letterboxes to that shape, so image exports come out in exactly the chosen ratio.
 - **Export map as image** — downloads the current map view (tiles, arrows, markers, attribution) as a 2x-resolution PNG.
@@ -49,7 +49,7 @@ src/store/cloudSync.ts           keeps the store and the MongoDB copy in step
 src/services/cloudDataService.ts client for /api/data
 api/data.ts                      Vercel Function: reads/writes the map in MongoDB
 src/services/osrmService.ts      OSRM routing fetch + straight-line fallback
-src/services/photonService.ts    city/town names around the map view (Photon geocoder), cached
+src/services/photonService.ts    city/town names around the map view, place search by name (Photon geocoder), cached
 src/services/geo.ts              haversine distance, bezier control-point math
 src/components/map/              MapView, markers, CurvedArrowsOverlay
 src/components/panels/           detail panel, edit forms, photo gallery, links
@@ -61,4 +61,5 @@ src/components/controls/         image export, JSON import/export, destination l
 - The OSM tile layer sets `crossOrigin="anonymous"` — required so the PNG export can rasterize tiles without tainting the canvas. Keep it if you change tile providers.
 - The OSRM public demo server is free and unauthenticated; routes are fetched only when a destination is first opened and then cached in the data (including through export/import), to keep usage minimal.
 - The town names offered while picking a location come from the free [Photon](https://photon.komoot.io) geocoder (OpenStreetMap data). It is only queried while picking, answers are cached for the session, and it returns at most 50 places per request, nearest the map centre first — zoom in to see more. Greek names are the local OSM names; Photon itself only translates to English.
+- The place search in a form's Name field uses the same geocoder: one request after a short pause in typing (not per keystroke), at most 8 matches, cached for the session. What you type is sent to photon.komoot.io, together with the home base's position rounded to about a kilometre so nearby places rank first.
 - OSM attribution stays visible in exported images, as required by the [OSM tile usage policy](https://operations.osmfoundation.org/policies/tiles/).

@@ -343,6 +343,8 @@ export function DesktopAppShell() {
       pickedLocation,
       onConsumePickedLocation: () => setPickedLocation(null),
       onStartPicking: () => setPicking((p) => !p),
+      // the trip's region: the place search looks there first
+      searchNear: points[0],
       onClose: closeForm,
     };
     if (floating.kind === 'home-form') {

@@ -148,6 +148,8 @@ export function MobileAppShell() {
 
   function renderLayer(layer: Layer) {
     if (!data) return null;
+    // the trip's region: the place search in the forms looks there first
+    const searchNear = data.mainLocation?.location ?? data.destinations[0]?.location;
     switch (layer.kind) {
       case 'detail': {
         const destination = data.destinations.find((d) => d.id === layer.id);
@@ -179,6 +181,7 @@ export function MobileAppShell() {
             pickedLocation={pickedLocation}
             onConsumePickedLocation={() => setPickedLocation(null)}
             onStartPicking={() => push({ kind: 'pick' })}
+            searchNear={searchNear}
             onClose={() => back()}
             onSave={(draft) => {
               if (initial) {
@@ -203,6 +206,7 @@ export function MobileAppShell() {
             pickedLocation={pickedLocation}
             onConsumePickedLocation={() => setPickedLocation(null)}
             onStartPicking={() => push({ kind: 'pick' })}
+            searchNear={searchNear}
             onClose={() => back()}
             onSave={(home) => {
               setMainLocation(home);

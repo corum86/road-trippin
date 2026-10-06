@@ -3,8 +3,12 @@ import type { Lang } from '../i18n/translations';
 import { haversineDistanceMeters } from './geo';
 
 const PHOTON_REVERSE_URL = 'https://photon.komoot.io/reverse';
+const PHOTON_SEARCH_URL = 'https://photon.komoot.io/api';
 // the public server never returns more than this, nearest first
 const PHOTON_LIMIT = 50;
+const SEARCH_LIMIT = 8;
+/** Shorter text matches half the world; wait for this much before searching. */
+export const SEARCH_MIN_LENGTH = 2;
 // ask for more than the view so small pans stay inside what is loaded
 const RADIUS_SLACK = 1.5;
 // a cut-off answer holds the places nearest its centre; asking again from
@@ -150,4 +154,111 @@ export async function loadPlaces(
     groups.map((kinds) => fetchGroup(pLang, kinds, center, radiusKm * RADIUS_SLACK, signal)),
   );
   return added.includes(true);
+}
+
+// --- search by name ---------------------------------------------------------
+
+/** `area`: a town, region or country · `landmark`: a beach, peak, island… · `address`: a building, business or street */
+export type PlaceMatchKind = 'area' | 'landmark' | 'address';
+
+/** A place found by name, anywhere in the world. */
+export interface PlaceMatch {
+  id: string;
+  name: string;
+  /** where it is ("Epirus, Greece"), to tell namesakes apart; may be empty */
+  detail: string;
+  kind: PlaceMatchKind;
+  location: LatLng;
+}
+
+/** One answer of Photon's search, as far as this app reads it. */
+export interface PhotonSearchFeature {
+  properties?: {
+    osm_type?: string;
+    osm_id?: number;
+    /** Photon's own layer: house, street, locality, district, city, county, state, country, other */
+    type?: string;
+    name?: string;
+    housenumber?: string;
+    street?: string;
+    city?: string;
+    county?: string;
+    state?: string;
+    country?: string;
+  };
+  geometry?: { coordinates?: [number, number] };
+}
+
+const ADDRESS_LAYERS = ['house', 'street'];
+
+function placeMatchKind(layer: string | undefined): PlaceMatchKind {
+  if (!layer || layer === 'other') return 'landmark';
+  return ADDRESS_LAYERS.includes(layer) ? 'address' : 'area';
+}
+
+/**
+ * Photon's answers as matches to offer: named, without the repeats OSM holds
+ * of one place (a town's point and its boundary), and with towns and
+ * landmarks ahead of the businesses and streets named after them.
+ */
+export function placeMatchesFromPhoton(features: PhotonSearchFeature[]): PlaceMatch[] {
+  const seen = new Set<string>();
+  const matches: PlaceMatch[] = [];
+  for (const feature of features) {
+    const props = feature.properties;
+    const coords = feature.geometry?.coordinates;
+    // an address without a name of its own goes by street and number
+    const name = (props?.name || [props?.street, props?.housenumber].filter(Boolean).join(' ')).trim();
+    if (!props || !name || !coords || !Number.isFinite(coords[0]) || !Number.isFinite(coords[1])) continue;
+    const parts = [props.city, props.county, props.state, props.country].filter(
+      (part, i, all): part is string => !!part && part !== name && all.indexOf(part) === i,
+    );
+    const detail = parts.join(', ');
+    const key = `${name}|${detail}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    matches.push({
+      id: `${props.osm_type}${props.osm_id}`,
+      name,
+      detail,
+      kind: placeMatchKind(props.type),
+      // GeoJSON is [lng, lat]
+      location: { lat: coords[1], lng: coords[0] },
+    });
+  }
+  const isAddress = (m: PlaceMatch) => m.kind === 'address';
+  return [...matches.filter((m) => !isAddress(m)), ...matches.filter(isAddress)];
+}
+
+const searchCache = new Map<string, PlaceMatch[]>();
+
+/**
+ * Places matching what has been typed so far, best match first; those near
+ * `near` count as better matches. Answers are kept for the session, so
+ * deleting a letter does not ask again.
+ */
+export async function searchPlaces(
+  query: string,
+  lang: Lang,
+  near: LatLng | null,
+  signal: AbortSignal,
+): Promise<PlaceMatch[]> {
+  const q = query.trim();
+  if (q.length < SEARCH_MIN_LENGTH) return [];
+  const params = new URLSearchParams({ q, limit: String(SEARCH_LIMIT), lang: photonLang(lang) });
+  if (near) {
+    // the bias only needs to know the region
+    params.set('lat', near.lat.toFixed(2));
+    params.set('lon', near.lng.toFixed(2));
+  }
+  const key = params.toString();
+  const cached = searchCache.get(key);
+  if (cached) return cached;
+
+  const res = await fetch(`${PHOTON_SEARCH_URL}?${key}`, { signal });
+  if (!res.ok) throw new Error(`Photon HTTP ${res.status}`);
+  const json = (await res.json()) as { features?: PhotonSearchFeature[] };
+  const matches = placeMatchesFromPhoton(json.features ?? []);
+  searchCache.set(key, matches);
+  return matches;
 }

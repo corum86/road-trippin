@@ -1764,6 +1764,110 @@
   resize: none;
 }
 
+/* name input that searches for places as you type */
+.vm-suggest {
+  position: relative;
+}
+
+.vm-suggest-input {
+  padding-left: 42px;
+}
+
+.vm-suggest-lead {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  margin-top: -10px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.vm-suggest-spinner {
+  color: var(--accent-2);
+  animation: vm-suggest-spin 0.9s linear infinite;
+}
+
+@keyframes vm-suggest-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vm-suggest-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  /* four and a half suggestions: the cut-off one shows there are more */
+  max-height: 296px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.vm-suggest-list {
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+}
+
+.vm-suggest-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.vm-suggest-option-active {
+  background: var(--accent-2-tint);
+}
+
+.vm-suggest-icon {
+  color: var(--accent-2);
+}
+
+.vm-suggest-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.vm-suggest-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vm-suggest-detail {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.35;
+  color: var(--text-muted);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.vm-suggest-status {
+  padding: 14px;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
 .vm-input-sm {
   height: 40px;
   padding: 0 10px;
