@@ -39,6 +39,10 @@ The browser never talks to MongoDB directly: [api/data.ts](api/data.ts) holds th
 
 Each browser gets its own random **sync code** (shown under *Settings → Cloud sync*) naming its document. Paste one device's code into another to make them share a map; there are no accounts, so anyone who has a code can read and edit that map. The map is saved as a whole and the last save wins: a device picks up changes from the others when it is opened or refocused, and uploads its own a second after each edit (or once it is back online).
 
+## Android app
+
+[android/](android/) holds a native Android version of the mobile layout (Kotlin, Jetpack Compose). It reads and writes the same data and talks to the same `/api/data`, so a phone and a browser can share a map through a sync code. Its strings, seed data and expected logic results are generated from this app's sources; see [android/README.md](android/README.md) for building it and for what to regenerate after a change here.
+
 ## Project layout
 
 ```

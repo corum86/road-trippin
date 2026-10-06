@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launcher icon's sun as a single-colour shape; the system tints it for themed icons. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="1.25"
+        android:scaleY="1.25"
+        android:translateX="24"
+        android:translateY="24">
+        <path
+            android:pathData="M24,2L24,9M24,39L24,46M2,24L9,24M39,24L46,24M8.6,8.6L13.6,13.6M34.4,34.4L39.4,39.4M39.4,8.6L34.4,13.6M13.6,34.4L8.6,39.4"
+            android:strokeColor="#000000"
+            android:strokeLineCap="round"
+            android:strokeWidth="3.4" />
+        <path
+            android:fillColor="#000000"
+            android:pathData="M24,24m-11,0a11,11 0,1 1,22 0a11,11 0,1 1,-22 0" />
+    </group>
+</vector>
