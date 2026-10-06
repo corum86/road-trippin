@@ -10,6 +10,7 @@ export function formatDuration(seconds: number, t: TranslateFn): string {
   const hours = Math.floor(totalMinutes / 60);
   const minutes = totalMinutes % 60;
   if (hours === 0) return `${minutes} ${t('units.minutes')}`;
+  if (minutes === 0) return `${hours} ${t('units.hours')}`;
   return `${hours} ${t('units.hours')} ${minutes} ${t('units.minutes')}`;
 }
 

@@ -6,6 +6,8 @@ import { MainLocationMarker } from './MainLocationMarker';
 import { DestinationMarker } from './DestinationMarker';
 import { CurvedArrowsOverlay } from './CurvedArrowsOverlay';
 import { RoutePolylines } from './RoutePolylines';
+import { PlaceNamesLayer } from './PlaceNamesLayer';
+import type { MapPlace } from '../../services/photonService';
 import type { MapDensity, RouteDisplayMode } from '../../types/display';
 
 interface MapViewProps {
@@ -15,6 +17,8 @@ interface MapViewProps {
   onEditMainLocation: () => void;
   /** any click on the map background (pins don't bubble up to it) */
   onMapClick?: (lat: number, lng: number) => void;
+  /** when set, city and town names in view are shown as selectable pills */
+  onSelectPlace?: (place: MapPlace) => void;
   frameStyle?: React.CSSProperties;
   displayMode?: RouteDisplayMode;
   /** permanent name pills beside every pin instead of click popups */
@@ -31,6 +35,10 @@ const ARROW_WIDTHS: Record<MapDensity, [number, number]> = {
   compact: [2.5, 3.5],
   comfortable: [3, 4],
 };
+
+// where the map opens with no home base and no place to centre on
+const WORLD_CENTER: [number, number] = [30, 10];
+const WORLD_ZOOM = 2;
 
 function MapClickHandler({ onClick }: { onClick?: (lat: number, lng: number) => void }) {
   useMapEvents({
@@ -59,6 +67,7 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
     onSelectDestination,
     onEditMainLocation,
     onMapClick,
+    onSelectPlace,
     frameStyle,
     displayMode = 'arrows',
     showLabels = false,
@@ -69,13 +78,14 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
   },
   ref,
 ) {
-  const center: [number, number] = [data.mainLocation.location.lat, data.mainLocation.location.lng];
+  const home = data.mainLocation;
+  const anchor = home?.location ?? data.destinations[0]?.location;
 
   return (
     <div ref={ref} className="vm-map-export-root" style={frameStyle}>
       <MapContainer
-        center={center}
-        zoom={7}
+        center={anchor ? [anchor.lat, anchor.lng] : WORLD_CENTER}
+        zoom={anchor ? 7 : WORLD_ZOOM}
         className="vm-map-container"
         scrollWheelZoom
         zoomControl={zoomControl}
@@ -95,27 +105,29 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
           zoomOffset={1}
           maxZoom={18}
         />
-        {displayMode === 'arrows' && (
+        {home && displayMode === 'arrows' && (
           <CurvedArrowsOverlay
-            mainLocation={data.mainLocation}
+            mainLocation={home}
             destinations={data.destinations}
             selectedDestinationId={selectedDestinationId}
             baseStrokeWidths={ARROW_WIDTHS[density]}
           />
         )}
-        {displayMode === 'routes' && (
+        {home && displayMode === 'routes' && (
           <RoutePolylines
-            mainLocation={data.mainLocation}
+            mainLocation={home}
             destinations={data.destinations}
             selectedDestinationId={selectedDestinationId}
           />
         )}
-        <MainLocationMarker
-          mainLocation={data.mainLocation}
-          onEdit={onEditMainLocation}
-          showLabel={showLabels}
-          density={density}
-        />
+        {home && (
+          <MainLocationMarker
+            mainLocation={home}
+            onEdit={onEditMainLocation}
+            showLabel={showLabels}
+            density={density}
+          />
+        )}
         {data.destinations.map((dest) => (
           <DestinationMarker
             key={dest.id}
@@ -126,6 +138,7 @@ export const MapView = forwardRef<HTMLDivElement, MapViewProps>(function MapView
             density={density}
           />
         ))}
+        {onSelectPlace && <PlaceNamesLayer onSelect={onSelectPlace} />}
         <MapClickHandler onClick={onMapClick} />
         {children}
       </MapContainer>

@@ -3,6 +3,8 @@ import type { AspectRatioId, ExportOptions, MapOrientation } from '../../types/d
 import { useI18n } from '../../i18n/context';
 import type { Lang, TranslationKey } from '../../i18n/translations';
 import { exportAspectLabel } from '../../services/exportFrame';
+import { useCloudSyncStore } from '../../store/cloudSync';
+import { CloudSyncControls } from '../controls/CloudSyncControls';
 import { DataImportExportControls } from '../controls/DataImportExportControls';
 import { Icon } from '../ui/Icon';
 import { SectionLabel } from '../ui/SectionLabel';
@@ -15,6 +17,7 @@ interface SettingsScreenProps {
   exporting: boolean;
   onExport: () => void;
   onEditHome: () => void;
+  onReset: () => void;
 }
 
 const ASPECTS: AspectRatioId[] = ['free', '16:9', '4:3', '1:1'];
@@ -33,8 +36,10 @@ export function SettingsScreen({
   exporting,
   onExport,
   onEditHome,
+  onReset,
 }: SettingsScreenProps) {
   const { t, lang, setLang } = useI18n();
+  const cloudSync = useCloudSyncStore((s) => s.status !== 'unavailable');
   const home = data.mainLocation;
   const isDesktop = variant === 'desktop';
   const { aspect, orientation, quality } = exportOptions;
@@ -66,13 +71,20 @@ export function SettingsScreen({
           <SectionLabel>{t('form.homeBase')}</SectionLabel>
           <button type="button" className="vm-card vm-home-card" onClick={onEditHome}>
             <span className="vm-home-badge">★</span>
-            <span className="vm-home-text">
-              <span className="vm-home-name">{home.name}</span>
-              <span className="vm-mono vm-meta">
-                {home.location.lat.toFixed(5)}, {home.location.lng.toFixed(5)}
+            {home ? (
+              <span className="vm-home-text">
+                <span className="vm-home-name">{home.name}</span>
+                <span className="vm-mono vm-meta">
+                  {home.location.lat.toFixed(5)}, {home.location.lng.toFixed(5)}
+                </span>
               </span>
-            </span>
-            <Icon name="edit" size={20} className="vm-text-muted" />
+            ) : (
+              <span className="vm-home-text">
+                <span className="vm-home-name">{t('settings.homeUnset')}</span>
+                <span className="vm-meta">{t('settings.homeUnsetHint')}</span>
+              </span>
+            )}
+            <Icon name={home ? 'edit' : 'add_location_alt'} size={20} className="vm-text-muted" />
           </button>
         </section>
 
@@ -133,10 +145,20 @@ export function SettingsScreen({
           </div>
         </section>
 
+        {cloudSync && (
+          <section className="vm-settings-section">
+            <SectionLabel>{t('sync.title')}</SectionLabel>
+            <CloudSyncControls />
+            <div className="vm-settings-hint">{t('sync.hint')}</div>
+          </section>
+        )}
+
         <section className="vm-settings-section">
           <SectionLabel>{t('settings.data')}</SectionLabel>
-          <DataImportExportControls />
-          <div className="vm-settings-hint">{isDesktop ? t('data.hint') : t('settings.dataHint')}</div>
+          <DataImportExportControls onReset={onReset} />
+          {!cloudSync && (
+            <div className="vm-settings-hint">{isDesktop ? t('data.hint') : t('settings.dataHint')}</div>
+          )}
         </section>
       </div>
     </div>

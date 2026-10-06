@@ -1,10 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useMapDataStore } from '../../store/mapDataStore';
-import type { LatLng } from '../../types/models';
+import { useCloudSyncStore } from '../../store/cloudSync';
+import type { PickedLocation } from '../../types/models';
 import type { ExportOptions, RouteDisplayMode } from '../../types/display';
 import { useI18n } from '../../i18n/context';
 import { useRouteGeometryBackfill } from '../../hooks/useRouteGeometryBackfill';
 import { exportAspectLabel, exportFrameRect } from '../../services/exportFrame';
+import { mapPoints } from '../../services/geo';
 import { downloadDataUrl, renderMapToPng } from '../../services/mapImageExport';
 import { MapView } from '../map/MapView';
 import { FitToPoints, KeepInView, type MapPadding } from '../map/MapViewport';
@@ -16,7 +18,11 @@ import { DestinationDetailScreen } from '../screens/DestinationDetailScreen';
 import { LocationFormScreen } from '../screens/LocationFormScreen';
 import { TripDatesPicker } from '../screens/TripDatesPicker';
 import { AddToDaySheet } from '../screens/AddToDaySheet';
+import { SwapSheet } from '../screens/SwapSheet';
+import { ReplanSheet } from '../screens/ReplanSheet';
+import { TripWizard } from '../wizard/TripWizard';
 import { ConfirmDeleteDialog } from '../ui/ConfirmDeleteDialog';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { Toast } from '../ui/Toast';
 import { useToast } from '../ui/useToast';
 import { Icon } from '../ui/Icon';
@@ -30,7 +36,11 @@ type PanelTab = Exclude<DesktopTab, 'map'>;
 type Floating = { kind: 'detail' } | { kind: 'destination-form'; id: string | null } | { kind: 'home-form' };
 
 /** Trip planning overlays: the date-range popover and the add-to-day dialog. */
-type TripOverlay = { kind: 'dates' } | { kind: 'add-to-day'; day: number };
+type TripOverlay =
+  | { kind: 'dates' }
+  | { kind: 'add-to-day'; day: number }
+  | { kind: 'swap'; day: number; index: number }
+  | { kind: 'replan' };
 
 // Fit padding keeps pins clear of the map controls (top), attribution
 // (bottom), and the floating Detail/Form panel (right) when it is open.
@@ -67,15 +77,23 @@ export function DesktopAppShell() {
   const updateDestination = useMapDataStore((s) => s.updateDestination);
   const removeDestination = useMapDataStore((s) => s.removeDestination);
   const setTripDates = useMapDataStore((s) => s.setTripDates);
+  const applyPlannedTrip = useMapDataStore((s) => s.applyPlannedTrip);
+  const clearTrip = useMapDataStore((s) => s.clearTrip);
+  const clearAllData = useMapDataStore((s) => s.clearAllData);
+  const cloudSync = useCloudSyncStore((s) => s.status !== 'unavailable');
 
   const [tab, setTab] = useState<DesktopTab>('places');
   // keeps showing while the panel collapses for the Map tab
   const [panelTab, setPanelTab] = useState<PanelTab>('places');
   const [floating, setFloating] = useState<Floating | null>(null);
   const [picking, setPicking] = useState(false);
-  const [pickedLocation, setPickedLocation] = useState<LatLng | null>(null);
+  const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<'clear-trip' | 'reset' | null>(null);
   const [tripOverlay, setTripOverlay] = useState<TripOverlay | null>(null);
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  // hidden (answers kept) while its "Change home base" form is open
+  const [plannerSuspended, setPlannerSuspended] = useState(false);
   const [displayMode, setDisplayMode] = useState<RouteDisplayMode>('arrows');
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     aspect: 'free',
@@ -95,6 +113,14 @@ export function DesktopAppShell() {
 
   useRouteGeometryBackfill(displayMode === 'routes', data);
 
+  // first launch with no places: start with the trip planner
+  const plannerAutoOpened = useRef(false);
+  useEffect(() => {
+    if (!data || plannerAutoOpened.current) return;
+    plannerAutoOpened.current = true;
+    if (data.destinations.length === 0 && data.mainLocation) setPlannerOpen(true);
+  }, [data]);
+
   const hasData = data !== null;
   useLayoutEffect(() => {
     const stage = stageRef.current;
@@ -109,7 +135,7 @@ export function DesktopAppShell() {
   }, [isLoaded, hasData]);
 
   const points = useMemo(
-    () => (data ? [data.mainLocation.location, ...data.destinations.map((d) => d.location)] : []),
+    () => (data ? mapPoints(data.mainLocation, data.destinations) : []),
     [data],
   );
 
@@ -123,6 +149,7 @@ export function DesktopAppShell() {
 
   function closeForm() {
     setPicking(false);
+    setPlannerSuspended(false);
     // cancelling an edit returns to that destination's Detail
     setFloating(floating?.kind === 'destination-form' && floating.id ? { kind: 'detail' } : null);
   }
@@ -130,7 +157,10 @@ export function DesktopAppShell() {
   // Esc closes the innermost thing: dialog → picking → floating panel
   const escRef = useRef<() => void>(() => {});
   escRef.current = () => {
+    // the planner keeps its answers: only its × closes it
+    if (plannerOpen && !plannerSuspended && data?.mainLocation) return;
     if (confirmDeleteId) setConfirmDeleteId(null);
+    else if (confirming) setConfirming(null);
     else if (picking) setPicking(false);
     else if (floating?.kind === 'detail') closeDetail();
     else if (floating) closeForm();
@@ -203,6 +233,16 @@ export function DesktopAppShell() {
     setFloating({ kind: 'home-form' });
   }
 
+  function openPlanner() {
+    // the planner plans around the home base: ask for that first
+    if (!data?.mainLocation) {
+      showToast(t('trip.needsHome'));
+      openHomeForm();
+      return;
+    }
+    setPlannerOpen(true);
+  }
+
   function handleMapClick(lat: number, lng: number) {
     if (picking) {
       setPickedLocation({ lat, lng });
@@ -254,7 +294,10 @@ export function DesktopAppShell() {
             onOpenDetail={openDetail}
             onOpenDates={() => setTripOverlay({ kind: 'dates' })}
             onAddToDay={(day) => setTripOverlay({ kind: 'add-to-day', day })}
-            onToast={showToast}
+            onSwap={(day, index) => setTripOverlay({ kind: 'swap', day, index })}
+            onReplan={() => setTripOverlay({ kind: 'replan' })}
+            onOpenPlanner={openPlanner}
+            onClearTrip={() => setConfirming('clear-trip')}
           />
         );
       case 'settings':
@@ -267,6 +310,7 @@ export function DesktopAppShell() {
             exporting={exporting}
             onExport={handleExport}
             onEditHome={openHomeForm}
+            onReset={() => setConfirming('reset')}
           />
         );
     }
@@ -312,6 +356,7 @@ export function DesktopAppShell() {
             setMainLocation(home);
             setPicking(false);
             setFloating(null);
+            setPlannerSuspended(false);
             showToast(t('toast.saved'));
           }}
         />
@@ -356,6 +401,14 @@ export function DesktopAppShell() {
           onSelectDestination={openDetail}
           onEditMainLocation={openHomeForm}
           onMapClick={handleMapClick}
+          onSelectPlace={
+            picking
+              ? (place) => {
+                  setPickedLocation({ ...place.location, name: place.name });
+                  setPicking(false);
+                }
+              : undefined
+          }
           frameStyle={{ width: '100%', height: '100%' }}
           displayMode={displayMode}
           showLabels
@@ -424,6 +477,42 @@ export function DesktopAppShell() {
         />
       )}
 
+      {tripOverlay?.kind === 'swap' && (
+        <SwapSheet
+          variant="desktop"
+          data={data}
+          dayIndex={tripOverlay.day}
+          index={tripOverlay.index}
+          onClose={() => setTripOverlay(null)}
+          onToast={showToast}
+        />
+      )}
+      {tripOverlay?.kind === 'replan' && (
+        <ReplanSheet variant="desktop" data={data} onClose={() => setTripOverlay(null)} onToast={showToast} />
+      )}
+
+      {plannerOpen && data.mainLocation && (
+        <div hidden={plannerSuspended}>
+          <TripWizard
+            variant="desktop"
+            data={data}
+            home={data.mainLocation}
+            onClose={() => setPlannerOpen(false)}
+            onChangeHome={() => {
+              setPlannerSuspended(true);
+              openHomeForm();
+            }}
+            onFinish={(planned) => {
+              applyPlannedTrip(planned);
+              setPlannerOpen(false);
+              setFloating(null);
+              selectTab('trip');
+              showToast(t('trip.wizSaved', { n: planned.places.length }));
+            }}
+          />
+        </div>
+      )}
+
       {confirmTarget && (
         <ConfirmDeleteDialog
           className="vm-desktop-dialog-backdrop"
@@ -434,6 +523,41 @@ export function DesktopAppShell() {
             setConfirmDeleteId(null);
             setFloating(null);
             showToast(t('toast.deleted'));
+          }}
+        />
+      )}
+
+      {confirming === 'clear-trip' && (
+        <ConfirmDialog
+          className="vm-desktop-dialog-backdrop"
+          title={t('trip.clearConfirmTitle')}
+          body={t('trip.clearConfirmBody')}
+          confirmLabel={t('trip.clear')}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            clearTrip();
+            setConfirming(null);
+            showToast(t('trip.cleared'));
+          }}
+        />
+      )}
+
+      {confirming === 'reset' && (
+        <ConfirmDialog
+          className="vm-desktop-dialog-backdrop"
+          title={t('data.confirmResetTitle')}
+          body={[t('data.confirmReset'), cloudSync && t('data.confirmResetSynced')].filter(Boolean).join(' ')}
+          confirmLabel={t('data.confirmResetAction')}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            clearAllData();
+            setConfirming(null);
+            // a Detail or place form still open shows a place that is gone
+            if (floating && floating.kind !== 'home-form') {
+              setPicking(false);
+              setFloating(null);
+            }
+            showToast(t('data.cleared'));
           }}
         />
       )}

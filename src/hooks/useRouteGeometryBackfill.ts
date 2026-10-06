@@ -14,11 +14,13 @@ export function useRouteGeometryBackfill(enabled: boolean, data: VacationMapData
   const inFlight = useRef(new Set<string>());
 
   useEffect(() => {
-    if (!enabled || !data) return;
+    // routes start at the home base
+    const home = data?.mainLocation;
+    if (!enabled || !data || !home) return;
     for (const dest of data.destinations) {
       if (dest.routeInfo?.geometry || inFlight.current.has(dest.id)) continue;
       inFlight.current.add(dest.id);
-      fetchRoute(data.mainLocation.location, dest.location)
+      fetchRoute(home.location, dest.location)
         .then((info) => setRouteInfo(dest.id, info))
         .finally(() => inFlight.current.delete(dest.id));
     }

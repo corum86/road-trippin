@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
-import type { Destination, DestinationDraft, LatLng, LinkItem, MainLocation, Photo } from '../../types/models';
+import type {
+  Destination,
+  DestinationDraft,
+  LinkItem,
+  MainLocation,
+  Photo,
+  PickedLocation,
+} from '../../types/models';
 import { useI18n } from '../../i18n/context';
 import { Icon } from '../ui/Icon';
 import { SectionLabel } from '../ui/SectionLabel';
@@ -10,13 +17,13 @@ type LocationFormScreenProps = {
   variant: 'mobile' | 'desktop';
   /** desktop picks on the live map beside the form; the button reflects it */
   picking?: boolean;
-  pickedLocation: LatLng | null;
+  pickedLocation: PickedLocation | null;
   onConsumePickedLocation: () => void;
   onStartPicking: () => void;
   onClose: () => void;
 } & (
   | { kind: 'destination'; initial: Destination | null; onSave: (draft: DestinationDraft) => void }
-  | { kind: 'home'; initial: MainLocation; onSave: (home: MainLocation) => void }
+  | { kind: 'home'; initial: MainLocation | null; onSave: (home: MainLocation) => void }
 );
 
 /** Accepts "39.5", " 39.5 " and the decimal comma Greek keyboards produce. */
@@ -46,6 +53,8 @@ export function LocationFormScreen(props: LocationFormScreenProps) {
 
   useEffect(() => {
     if (pickedLocation) {
+      // a town picked by name names the place too; a bare map point keeps the name
+      if (pickedLocation.name) setName(pickedLocation.name);
       setLat(pickedLocation.lat.toFixed(5));
       setLng(pickedLocation.lng.toFixed(5));
       setLocationError(false);
@@ -56,7 +65,9 @@ export function LocationFormScreen(props: LocationFormScreenProps) {
 
   const title =
     props.kind === 'home'
-      ? t('form.editMainLocation')
+      ? props.initial
+        ? t('form.editMainLocation')
+        : t('form.setHomeBase')
       : props.initial
         ? t('form.editDestination')
         : t('form.addDestination');

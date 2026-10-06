@@ -5,6 +5,7 @@ import {
   CURRENT_DATA_VERSION,
   type Destination,
   type DestinationDraft,
+  type PlannedTrip,
   type LatLng,
   type MainLocation,
   type Photo,
@@ -17,12 +18,17 @@ import {
 } from '../types/models';
 import { diffDays, isIsoDate, todayIso } from '../services/dates';
 import {
-  autoPlanTrip,
   clampTripEnd,
+  emptyTrip,
   movePlanStop,
   removeFromPlan,
+  replanTrip,
   sanitizeTrip,
+  scheduleUnscheduled,
+  swapPlanStop,
+  togglePlanDay,
   tripDayCount,
+  type StopRef,
 } from '../services/tripPlan';
 
 const DATA_URL = '/data/vacation-data.json';
@@ -32,7 +38,7 @@ function isValidVacationMapData(value: unknown): value is VacationMapData {
   const v = value as Record<string, unknown>;
   return (
     typeof v.version === 'number' &&
-    !!v.mainLocation &&
+    // an object, or null on a map with no home base yet
     typeof v.mainLocation === 'object' &&
     Array.isArray(v.destinations)
   );
@@ -69,7 +75,7 @@ function tripFromLegacy(legacy: LegacyTripFields): Partial<Trip> | undefined {
 /**
  * Bring data of any earlier version up to the current shape. Idempotent, so
  * it is safe to run on every entry point: seed fetch, localStorage
- * rehydration, file import and reset.
+ * rehydration and file import.
  */
 export function migrateVacationMapData(raw: VacationMapData): VacationMapData {
   // older data lacks the newer fields entirely; read through a loose view of it
@@ -88,7 +94,7 @@ export function migrateVacationMapData(raw: VacationMapData): VacationMapData {
   });
   return {
     version: CURRENT_DATA_VERSION,
-    mainLocation: raw.mainLocation,
+    mainLocation: raw.mainLocation ?? null,
     destinations,
     trip: sanitizeTrip(loose.trip ?? tripFromLegacy(loose), new Set(destinations.map((d) => d.id))),
   };
@@ -96,6 +102,16 @@ export function migrateVacationMapData(raw: VacationMapData): VacationMapData {
 
 function sameLocation(a: LatLng, b: LatLng): boolean {
   return a.lat === b.lat && a.lng === b.lng;
+}
+
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase();
+}
+
+/** `existing` plus the items of `added` it doesn't have yet (compared by `key`). */
+function unionBy<T>(existing: T[], added: T[], key: (item: T) => string): T[] {
+  const seen = new Set(existing.map(key));
+  return [...existing, ...added.filter((item) => !seen.has(key(item)))];
 }
 
 function ensureVisit(dest: Destination): VisitLog {
@@ -111,7 +127,8 @@ interface MapDataState {
 
   loadInitialData: () => Promise<void>;
   setMainLocation: (loc: MainLocation) => void;
-  addDestination: (dest: DestinationDraft & Partial<Pick<Destination, 'status' | 'favorite' | 'visit'>>) => string;
+  /** save a new place; pass `id` to keep a known one (e.g. a planner suggestion's) */
+  addDestination: (dest: DestinationDraft & Partial<Pick<Destination, 'id' | 'status' | 'favorite' | 'visit'>>) => string;
   updateDestination: (id: string, patch: Partial<Omit<Destination, 'id'>>) => void;
   removeDestination: (id: string) => void;
   setSelectedDestination: (id: string | null) => void;
@@ -123,16 +140,27 @@ interface MapDataState {
   removeVisitPhoto: (id: string, photoId: string) => void;
   updateVisit: (id: string, patch: Partial<VisitLog>) => void;
   setTripName: (name: string) => void;
+  /** delete the trip (name, dates, plan, planner answers), leaving an empty one; the places stay */
+  clearTrip: () => void;
   /** set the trip's date range (end is clamped to the maximum trip length) */
   setTripDates: (startDate: string, endDate: string) => void;
-  /** put a destination on a day (before position `beforeIndex`, or last), or unschedule it with null */
-  moveStop: (id: string, dayIndex: number | null, beforeIndex?: number) => void;
-  /** spread the unscheduled destinations over the trip; returns how many were placed */
+  /** move one visit to a day (before position `beforeIndex`, or last), or off its day with null */
+  moveStop: (from: StopRef, dayIndex: number | null, beforeIndex?: number) => void;
+  /** add a visit to a day, or remove it if the place is already on that day */
+  toggleTripDay: (id: string, dayIndex: number) => void;
+  /** replace the stop at `dayIndex`/`index` with another place */
+  swapStop: (dayIndex: number, index: number, newId: string) => void;
+  /** plan the places that are on no day; returns how many were placed */
   autoPlan: () => number;
+  /** re-plan days from `fromDay` on by drive time; returns how many places were redistributed */
+  replan: (fromDay: number, includeUnscheduled: boolean) => number;
   /** replace the whole plan, e.g. to undo an auto-plan */
   setPlan: (plan: string[][]) => void;
+  /** save the trip-planner result: merge its places into Places and replace the trip */
+  applyPlannedTrip: (planned: PlannedTrip) => void;
   replaceAllData: (data: VacationMapData) => void;
-  resetToBundledDefaults: () => Promise<void>;
+  /** delete everything: the places, the trip and the home base */
+  clearAllData: () => void;
 }
 
 export const useMapDataStore = create<MapDataState>()(
@@ -173,7 +201,9 @@ export const useMapDataStore = create<MapDataState>()(
             if (!res.ok) throw new Error(`Failed to fetch seed data: HTTP ${res.status}`);
             const json = await res.json();
             if (!isValidVacationMapData(json)) throw new Error('Seed data has an invalid shape');
-            set({ data: migrateVacationMapData(json), isLoaded: true, loadError: null });
+            // cloud sync may have delivered the saved map while the seed was on its way
+            if (get().data) set({ isLoaded: true });
+            else set({ data: migrateVacationMapData(json), isLoaded: true, loadError: null });
           } catch (err) {
             set({
               isLoaded: true,
@@ -186,7 +216,7 @@ export const useMapDataStore = create<MapDataState>()(
           const current = get().data;
           if (!current) return;
           // every cached route starts at the home base, so moving it voids them all
-          const moved = !sameLocation(current.mainLocation.location, loc.location);
+          const moved = !current.mainLocation || !sameLocation(current.mainLocation.location, loc.location);
           set({
             data: {
               ...current,
@@ -200,7 +230,7 @@ export const useMapDataStore = create<MapDataState>()(
 
         addDestination: (dest) => {
           const current = get().data;
-          const id = uuidv4();
+          const id = dest.id ?? uuidv4();
           if (!current) return id;
           const created: Destination = { status: 'planned', favorite: false, ...dest, id };
           set({
@@ -264,6 +294,8 @@ export const useMapDataStore = create<MapDataState>()(
 
         setTripName: (name) => updateTrip((trip) => ({ ...trip, name })),
 
+        clearTrip: () => updateTrip(() => emptyTrip()),
+
         setTripDates: (startDate, endDate) =>
           updateTrip((trip) => {
             const next = { ...trip, startDate, endDate: clampTripEnd(startDate, endDate) };
@@ -276,32 +308,109 @@ export const useMapDataStore = create<MapDataState>()(
             return { ...next, plan };
           }),
 
-        moveStop: (id, dayIndex, beforeIndex) =>
-          updateTrip((trip) => ({ ...trip, plan: movePlanStop(trip.plan, id, dayIndex, beforeIndex) })),
+        moveStop: (from, dayIndex, beforeIndex) =>
+          updateTrip((trip) => ({ ...trip, plan: movePlanStop(trip.plan, from, dayIndex, beforeIndex) })),
+
+        toggleTripDay: (id, dayIndex) => updateTrip((trip) => ({ ...trip, plan: togglePlanDay(trip.plan, id, dayIndex) })),
+
+        swapStop: (dayIndex, index, newId) =>
+          updateTrip((trip) => ({ ...trip, plan: swapPlanStop(trip.plan, dayIndex, index, newId) })),
 
         autoPlan: () => {
           const current = get().data;
-          if (!current) return 0;
-          const { plan, count } = autoPlanTrip(current.trip, current.mainLocation, current.destinations);
+          // planning goes by drive time from the home base
+          if (!current?.mainLocation) return 0;
+          const { plan, count } = scheduleUnscheduled(current.trip, current.mainLocation, current.destinations);
+          if (count > 0) set({ data: { ...current, trip: { ...current.trip, plan } } });
+          return count;
+        },
+
+        replan: (fromDay, includeUnscheduled) => {
+          const current = get().data;
+          if (!current?.mainLocation) return 0;
+          const { plan, count } = replanTrip(
+            current.trip,
+            current.mainLocation,
+            current.destinations,
+            fromDay,
+            includeUnscheduled,
+          );
           if (count > 0) set({ data: { ...current, trip: { ...current.trip, plan } } });
           return count;
         },
 
         setPlan: (plan) => updateTrip((trip) => ({ ...trip, plan })),
 
+        applyPlannedTrip: (planned) => {
+          const current = get().data;
+          if (!current) return;
+          const destinations = [...current.destinations];
+          // a planner place may already be saved: under its id, or by name
+          const idMap = new Map<string, string>();
+          for (const place of planned.places) {
+            const at = destinations.findIndex(
+              (d) => d.id === place.id || normalizeName(d.name) === normalizeName(place.name),
+            );
+            if (at >= 0) {
+              const existing = destinations[at];
+              idMap.set(place.id, existing.id);
+              // keep the visit log, favourite and status; add what's new
+              destinations[at] = {
+                ...existing,
+                photos: unionBy(existing.photos, place.photos, (p) => p.url),
+                links: unionBy(existing.links, place.links, (l) => l.url),
+                attractions: unionBy(existing.attractions, place.attractions, (a) => a.trim().toLowerCase()),
+              };
+            } else {
+              idMap.set(place.id, place.id);
+              destinations.push({
+                id: place.id,
+                name: place.name,
+                location: place.location,
+                attractions: place.attractions,
+                photos: place.photos,
+                links: place.links,
+                notes: place.notes,
+                routeInfo: place.routeInfo,
+                status: 'planned',
+                favorite: false,
+              });
+            }
+          }
+          const plan = planned.plan.map((ids) => [...new Set(ids.map((id) => idMap.get(id) ?? id))]);
+          set({
+            data: {
+              ...current,
+              destinations,
+              trip: {
+                name: planned.name,
+                startDate: planned.startDate,
+                endDate: clampTripEnd(planned.startDate, planned.endDate),
+                plan,
+                preferences: planned.preferences,
+                suggestions: planned.suggestions,
+              },
+            },
+            selectedDestinationId: null,
+          });
+        },
+
         replaceAllData: (data) =>
           set({ data: migrateVacationMapData(data), selectedDestinationId: null, loadError: null }),
 
-        resetToBundledDefaults: async () => {
-          try {
-            const res = await fetch(DATA_URL);
-            if (!res.ok) throw new Error(`Failed to fetch seed data: HTTP ${res.status}`);
-            const json = await res.json();
-            if (!isValidVacationMapData(json)) throw new Error('Seed data has an invalid shape');
-            set({ data: migrateVacationMapData(json), selectedDestinationId: null, loadError: null });
-          } catch (err) {
-            set({ loadError: err instanceof Error ? err.message : 'Failed to reset data' });
-          }
+        clearAllData: () => {
+          const current = get().data;
+          if (!current) return;
+          set({
+            data: {
+              version: CURRENT_DATA_VERSION,
+              mainLocation: null,
+              destinations: [],
+              trip: emptyTrip(),
+            },
+            selectedDestinationId: null,
+            loadError: null,
+          });
         },
       };
     },

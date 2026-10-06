@@ -23,6 +23,9 @@
   --star-empty: #d9cbb5;
   --danger: #e63946;
   --danger-tint: #fbe3e5;
+  /* revisits: a place planned again on a later day */
+  --amber: #a3560a;
+  --amber-tint: #fff1d6;
   --success: #16a34a;
 
   --shadow-sm: 0 1px 3px rgba(120, 72, 20, 0.12);

@@ -9,6 +9,7 @@ import type { RouteDisplayMode } from '../../types/display';
 import { Icon } from '../ui/Icon';
 import { PhotoThumb } from '../ui/PhotoThumb';
 import { allPhotos, routeText, statusLabel } from '../screens/destinationHelpers';
+import { mapPoints } from '../../services/geo';
 
 interface MapScreenProps {
   data: VacationMapData;
@@ -36,7 +37,7 @@ export function MapScreen({ data, displayMode, onDisplayModeChange, onOpenDetail
   const selected = data.destinations.find((d) => d.id === selectedId) ?? null;
 
   const points = useMemo(
-    () => [data.mainLocation.location, ...data.destinations.map((d) => d.location)],
+    () => mapPoints(data.mainLocation, data.destinations),
     [data.mainLocation, data.destinations],
   );
   const pointsKey = points.map((p) => `${p.lat},${p.lng}`).join('|');

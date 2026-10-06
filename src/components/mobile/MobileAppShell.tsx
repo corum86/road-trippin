@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMapDataStore } from '../../store/mapDataStore';
-import type { LatLng } from '../../types/models';
+import { useCloudSyncStore } from '../../store/cloudSync';
+import type { PickedLocation } from '../../types/models';
 import { useI18n } from '../../i18n/context';
 import type { TranslationKey } from '../../i18n/translations';
 import { useRouteGeometryBackfill } from '../../hooks/useRouteGeometryBackfill';
@@ -17,8 +18,12 @@ import { LocationFormScreen } from '../screens/LocationFormScreen';
 import { PickOnMapScreen } from './PickOnMapScreen';
 import { TripDatesPicker } from '../screens/TripDatesPicker';
 import { AddToDaySheet } from '../screens/AddToDaySheet';
-import { dayIndexByDestination } from '../../services/tripPlan';
+import { unscheduledDestinations } from '../../services/tripPlan';
+import { SwapSheet } from '../screens/SwapSheet';
+import { ReplanSheet } from '../screens/ReplanSheet';
+import { TripWizard } from '../wizard/TripWizard';
 import { ConfirmDeleteDialog } from '../ui/ConfirmDeleteDialog';
+import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { OffscreenMapExport } from './OffscreenMapExport';
 import { Toast } from '../ui/Toast';
 import { useToast } from '../ui/useToast';
@@ -33,12 +38,24 @@ type Layer =
   | { kind: 'home-form' }
   | { kind: 'pick' }
   | { kind: 'confirm-delete'; id: string }
+  | { kind: 'confirm-clear-trip' }
+  | { kind: 'confirm-reset' }
   | { kind: 'trip-dates' }
-  | { kind: 'add-to-day'; day: number };
+  | { kind: 'add-to-day'; day: number }
+  | { kind: 'swap'; day: number; index: number }
+  | { kind: 'replan' }
+  | { kind: 'planner' };
 
-// sheets slide over the current tab, bottom nav included; everything else is
-// a full-screen layer that replaces the nav
-const SHEET_LAYERS: ReadonlyArray<Layer['kind']> = ['trip-dates', 'add-to-day'];
+// sheets (and the dialogs a tab opens itself) sit over the current tab, bottom
+// nav included; everything else is a full-screen layer that replaces the nav
+const SHEET_LAYERS: ReadonlyArray<Layer['kind']> = [
+  'trip-dates',
+  'add-to-day',
+  'swap',
+  'replan',
+  'confirm-clear-trip',
+  'confirm-reset',
+];
 
 const TABS: Array<{ id: Tab; icon: string; labelKey: TranslationKey }> = [
   { id: 'map', icon: 'map', labelKey: 'tabs.map' },
@@ -59,10 +76,14 @@ export function MobileAppShell() {
   const removeDestination = useMapDataStore((s) => s.removeDestination);
   const setMainLocation = useMapDataStore((s) => s.setMainLocation);
   const setTripDates = useMapDataStore((s) => s.setTripDates);
+  const applyPlannedTrip = useMapDataStore((s) => s.applyPlannedTrip);
+  const clearTrip = useMapDataStore((s) => s.clearTrip);
+  const clearAllData = useMapDataStore((s) => s.clearAllData);
+  const cloudSync = useCloudSyncStore((s) => s.status !== 'unavailable');
 
   const [tab, setTab] = useState<Tab>('map');
   const [displayMode, setDisplayMode] = useState<RouteDisplayMode>('arrows');
-  const [pickedLocation, setPickedLocation] = useState<LatLng | null>(null);
+  const [pickedLocation, setPickedLocation] = useState<PickedLocation | null>(null);
   const [exportOptions, setExportOptions] = useState<ExportOptions>({
     aspect: '16:9',
     orientation: 'landscape',
@@ -71,11 +92,23 @@ export function MobileAppShell() {
   // the options of the export in flight, captured when it started
   const [exportJob, setExportJob] = useState<ExportOptions | null>(null);
   const { toast, showToast, dismissToast } = useToast();
-  const { stack, push, back, replaceTop } = useLayerStack<Layer>();
+  // the trip planner steps back through its own steps on the back gesture
+  const plannerBack = useRef<(() => boolean) | null>(null);
+  const { stack, push, back, replaceTop } = useLayerStack<Layer>(
+    (top) => top.kind === 'planner' && (plannerBack.current?.() ?? false),
+  );
 
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
+
+  // first launch with no places: start with the trip planner
+  const plannerAutoOpened = useRef(false);
+  useEffect(() => {
+    if (!data || plannerAutoOpened.current) return;
+    plannerAutoOpened.current = true;
+    if (data.destinations.length === 0 && data.mainLocation) push({ kind: 'planner' });
+  }, [data, push]);
 
   useRouteGeometryBackfill(displayMode === 'routes', data);
 
@@ -100,6 +133,17 @@ export function MobileAppShell() {
   const openAdd = () => {
     setPickedLocation(null);
     push({ kind: 'destination-form', id: null });
+  };
+
+  const openPlanner = () => {
+    // the planner plans around the home base: ask for that first
+    if (!data.mainLocation) {
+      showToast(t('trip.needsHome'));
+      setPickedLocation(null);
+      push({ kind: 'home-form' });
+      return;
+    }
+    push({ kind: 'planner' });
   };
 
   function renderLayer(layer: Layer) {
@@ -172,8 +216,8 @@ export function MobileAppShell() {
           <PickOnMapScreen
             data={data}
             displayMode={displayMode}
-            onPick={(lat, lng) => {
-              setPickedLocation({ lat, lng });
+            onPick={(lat, lng, name) => {
+              setPickedLocation({ lat, lng, name });
               back();
             }}
             onCancel={() => back()}
@@ -194,6 +238,41 @@ export function MobileAppShell() {
         );
       case 'add-to-day':
         return <AddToDaySheet variant="mobile" data={data} dayIndex={layer.day} onClose={() => back()} />;
+      case 'swap':
+        return (
+          <SwapSheet
+            variant="mobile"
+            data={data}
+            dayIndex={layer.day}
+            index={layer.index}
+            onClose={() => back()}
+            onToast={showToast}
+          />
+        );
+      case 'replan':
+        return <ReplanSheet variant="mobile" data={data} onClose={() => back()} onToast={showToast} />;
+      case 'planner':
+        // gone if another device cleared the map meanwhile
+        if (!data.mainLocation) return null;
+        return (
+          <TripWizard
+            variant="mobile"
+            data={data}
+            home={data.mainLocation}
+            backHandlerRef={plannerBack}
+            onClose={() => back()}
+            onChangeHome={() => {
+              setPickedLocation(null);
+              push({ kind: 'home-form' });
+            }}
+            onFinish={(planned) => {
+              applyPlannedTrip(planned);
+              back();
+              setTab('trip');
+              showToast(t('trip.wizSaved', { n: planned.places.length }));
+            }}
+          />
+        );
       case 'confirm-delete': {
         const destination = data.destinations.find((d) => d.id === layer.id);
         if (!destination) return null;
@@ -210,13 +289,41 @@ export function MobileAppShell() {
           />
         );
       }
+      case 'confirm-clear-trip':
+        return (
+          <ConfirmDialog
+            title={t('trip.clearConfirmTitle')}
+            body={t('trip.clearConfirmBody')}
+            confirmLabel={t('trip.clear')}
+            onCancel={() => back()}
+            onConfirm={() => {
+              clearTrip();
+              back();
+              showToast(t('trip.cleared'));
+            }}
+          />
+        );
+      case 'confirm-reset':
+        return (
+          <ConfirmDialog
+            title={t('data.confirmResetTitle')}
+            body={[t('data.confirmReset'), cloudSync && t('data.confirmResetSynced')].filter(Boolean).join(' ')}
+            confirmLabel={t('data.confirmResetAction')}
+            onCancel={() => back()}
+            onConfirm={() => {
+              clearAllData();
+              back();
+              showToast(t('data.cleared'));
+            }}
+          />
+        );
     }
   }
 
   const onMainScreen = stack.every((layer) => SHEET_LAYERS.includes(layer.kind));
   // the Trip screen's not-scheduled tray sits where the toast would
   const trayVisible =
-    tab === 'trip' && onMainScreen && dayIndexByDestination(data.trip).size < data.destinations.length;
+    tab === 'trip' && onMainScreen && unscheduledDestinations(data.trip, data.destinations).length > 0;
   const toastClass = !onMainScreen ? 'vm-mobile-toast-raised' : trayVisible ? 'vm-mobile-toast-above-tray' : undefined;
 
   return (
@@ -238,7 +345,10 @@ export function MobileAppShell() {
             onOpenDetail={openDetail}
             onOpenDates={() => push({ kind: 'trip-dates' })}
             onAddToDay={(day) => push({ kind: 'add-to-day', day })}
-            onToast={showToast}
+            onSwap={(day, index) => push({ kind: 'swap', day, index })}
+            onReplan={() => push({ kind: 'replan' })}
+            onOpenPlanner={openPlanner}
+            onClearTrip={() => push({ kind: 'confirm-clear-trip' })}
           />
         )}
         {tab === 'settings' && (
@@ -253,6 +363,7 @@ export function MobileAppShell() {
               setPickedLocation(null);
               push({ kind: 'home-form' });
             }}
+            onReset={() => push({ kind: 'confirm-reset' })}
           />
         )}
         {exportJob && (

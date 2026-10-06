@@ -6,6 +6,7 @@ import { exportRatio } from '../../services/exportFrame';
 import { renderMapToPng, saveOrSharePng } from '../../services/mapImageExport';
 import { MapView } from '../map/MapView';
 import { FitToPoints, WhenTilesLoaded } from '../map/MapViewport';
+import { mapPoints } from '../../services/geo';
 
 // CSS width of the offscreen map for fixed ratios; × quality gives the PNG
 // width (2x → 1920px wide)
@@ -41,7 +42,7 @@ export function OffscreenMapExport({ data, displayMode, options, onDone }: Offsc
   });
 
   const points = useMemo(
-    () => [data.mainLocation.location, ...data.destinations.map((d) => d.location)],
+    () => mapPoints(data.mainLocation, data.destinations),
     [data.mainLocation, data.destinations],
   );
 

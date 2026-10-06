@@ -75,13 +75,19 @@ export async function testGeminiConnection(
   }
 }
 
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English',
+  el: 'Greek',
+};
+
 // Google Search grounding has its own free-tier quota that 429s even when
 // plain generateContent works fine (verified across several models). So the
 // model provides facts and well-known links from its own knowledge, and
 // images come from the Wikimedia APIs instead (see wikimediaService).
-function promptFor(dest: Destination): string {
+function promptFor(dest: Destination, lang: string): string {
   return `You are researching the travel destination "${dest.name}" (near latitude ${dest.location.lat}, longitude ${dest.location.lng}).
 Provide 5 short, independent, interesting facts or things to do there, plus up to 5 relevant, well-known, stable URLs (official tourism sites, Wikipedia, notable attractions).
+Write the facts and link titles in ${LANGUAGE_NAMES[lang] ?? 'English'}.
 Only include URLs you are confident actually exist. Return ONLY a JSON object of the shape:
 {"facts": ["fact 1", "..."], "links": [{"title": "page title", "url": "https://..."}]}
 No markdown formatting, no code fences, no extra commentary.`;
@@ -197,7 +203,7 @@ function formatGeminiError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
-export async function fetchAiFindingsForDestination(dest: Destination): Promise<DestinationAiResult> {
+export async function fetchAiFindingsForDestination(dest: Destination, lang = 'en'): Promise<DestinationAiResult> {
   const base = {
     destinationId: dest.id,
     destinationName: dest.name,
@@ -207,7 +213,7 @@ export async function fetchAiFindingsForDestination(dest: Destination): Promise<
     // Deliberately NO googleSearch tool here — see comment on promptFor.
     // The Wikimedia image lookup runs in parallel with the Gemini call.
     const [rawText, images] = await Promise.all([
-      generateWithRetries(promptFor(dest), `research for "${dest.name}"`),
+      generateWithRetries(promptFor(dest, lang), `research for "${dest.name}"`),
       fetchImagesForDestination(dest),
     ]);
 
@@ -232,11 +238,6 @@ export async function fetchAiFindingsForDestination(dest: Destination): Promise<
     };
   }
 }
-
-const LANGUAGE_NAMES: Record<string, string> = {
-  en: 'English',
-  el: 'Greek',
-};
 
 export interface DestinationTranslationPatch {
   name: string;
@@ -325,4 +326,81 @@ export async function fetchAiFindingsForAllDestinations(
     onProgress?.(i + 1, destinations.length);
   }
   return results;
+}
+
+/** A candidate place as the model describes it, before routing and validation. */
+export interface RawPlaceSuggestion {
+  name: string;
+  lat: number;
+  lng: number;
+  blurb: string;
+  tags: string[];
+  groups: string[];
+  budget: number;
+  mustHaves: string[];
+  ferry: boolean;
+}
+
+export interface SuggestionRequest {
+  homeName: string;
+  home: { lat: number; lng: number };
+  startDate?: string;
+  endDate?: string;
+  lang: string;
+}
+
+// Asked once per planner run, before the traveller's answers are in: the
+// list is broad, and the app ranks it by their answers on the device.
+function suggestionsPrompt(req: SuggestionRequest): string {
+  const when = req.startDate ? ` The trip runs ${req.startDate} to ${req.endDate ?? req.startDate}.` : '';
+  return `You are a local travel expert. A traveller stays at "${req.homeName}" (latitude ${req.home.lat}, longitude ${req.home.lng}) and makes day trips from there by car.${when}
+Suggest 18 varied day-trip destinations within about 2.5 hours one-way drive, nearest first, including islands reachable by car ferry if there are any.
+For each give: a short name, accurate latitude and longitude, a one-sentence blurb, and these attributes:
+- "tags": any of ["relaxed","active","sightseeing","culture","food","nature"]
+- "groups": who it suits, any of ["couple","family","friends"]
+- "budget": 1 (cheap) to 3 (expensive)
+- "mustHaves": any of ["beach","food","kids","nightlife"]
+- "ferry": true only if reaching it requires a ferry crossing
+Write names and blurbs in ${LANGUAGE_NAMES[req.lang] ?? 'English'}. Only include real places you are confident exist at those coordinates.
+Return ONLY a JSON array of objects: [{"name":"","lat":0,"lng":0,"blurb":"","tags":[],"groups":[],"budget":1,"mustHaves":[],"ferry":false}]
+No markdown formatting, no code fences, no extra commentary.`;
+}
+
+/** Ask Gemini for day-trip ideas around the home base (throws a user-presentable message). */
+export async function fetchPlaceSuggestions(req: SuggestionRequest): Promise<RawPlaceSuggestion[]> {
+  let rawText: string | undefined;
+  try {
+    rawText = await generateWithRetries(suggestionsPrompt(req), `place suggestions around "${req.homeName}"`);
+  } catch (err) {
+    if (err instanceof GeminiApiKeyMissingError) throw err;
+    throw new Error(formatGeminiError(err, 'Suggestions failed.'));
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stripCodeFences(rawText ?? ''));
+  } catch {
+    throw new Error('Gemini returned an unexpected format.');
+  }
+  if (!Array.isArray(parsed)) throw new Error('Gemini returned an unexpected format.');
+  const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : []);
+  return parsed.flatMap((item): RawPlaceSuggestion[] => {
+    if (!item || typeof item !== 'object') return [];
+    const o = item as Record<string, unknown>;
+    const lat = Number(o.lat);
+    const lng = Number(o.lng);
+    if (typeof o.name !== 'string' || !o.name.trim() || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+    return [
+      {
+        name: o.name.trim(),
+        lat,
+        lng,
+        blurb: typeof o.blurb === 'string' ? o.blurb.trim() : '',
+        tags: strings(o.tags),
+        groups: strings(o.groups),
+        budget: Number(o.budget) || 2,
+        mustHaves: strings(o.mustHaves),
+        ferry: o.ferry === true,
+      },
+    ];
+  });
 }

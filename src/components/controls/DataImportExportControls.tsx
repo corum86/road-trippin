@@ -2,11 +2,15 @@ import { useRef, useState } from 'react';
 import { useMapDataStore } from '../../store/mapDataStore';
 import { useI18n } from '../../i18n/context';
 
-export function DataImportExportControls() {
+interface DataImportExportControlsProps {
+  /** the shell asks for confirmation, then clears the app */
+  onReset: () => void;
+}
+
+export function DataImportExportControls({ onReset }: DataImportExportControlsProps) {
   const { t } = useI18n();
   const data = useMapDataStore((s) => s.data);
   const replaceAllData = useMapDataStore((s) => s.replaceAllData);
-  const resetToBundledDefaults = useMapDataStore((s) => s.resetToBundledDefaults);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
@@ -39,7 +43,7 @@ export function DataImportExportControls() {
           typeof json !== 'object' ||
           json === null ||
           typeof json.version !== 'number' ||
-          !json.mainLocation ||
+          typeof json.mainLocation !== 'object' ||
           !Array.isArray(json.destinations)
         ) {
           throw new Error(t('data.invalidFormat'));
@@ -54,12 +58,6 @@ export function DataImportExportControls() {
     reader.readAsText(file);
   }
 
-  function handleReset() {
-    if (window.confirm(t('data.confirmReset'))) {
-      resetToBundledDefaults();
-    }
-  }
-
   // laid out as a row of Settings option buttons
   return (
     <div className="vm-data-controls">
@@ -70,7 +68,7 @@ export function DataImportExportControls() {
         <button type="button" className="vm-option" onClick={handleImportClick} title={t('data.importTitle')}>
           {t('data.import')}
         </button>
-        <button type="button" className="vm-option vm-option-danger" onClick={handleReset} title={t('data.resetTitle')}>
+        <button type="button" className="vm-option vm-option-danger" onClick={onReset} title={t('data.resetTitle')}>
           {t('data.reset')}
         </button>
       </div>

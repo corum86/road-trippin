@@ -4,6 +4,9 @@ import type { Rect } from './exportFrame';
 // Chromium caps canvases at ~16384px per side; stay below it.
 const MAX_CANVAS_SIDE = 16000;
 
+// UI that sits inside the map container but doesn't belong in the image
+const EXPORT_HIDDEN_CLASSES = ['leaflet-control-zoom', 'vm-town-label', 'vm-town-labels-status'];
+
 const OSM_ATTRIBUTION = '© OpenStreetMap contributors';
 
 /**
@@ -16,7 +19,8 @@ export async function renderMapToPng(node: HTMLElement, pixelRatio: number, crop
     cacheBust: true,
     pixelRatio: ratio,
     // keep OSM attribution (required by tile usage policy) but drop UI controls
-    filter: (el: Node) => !(el instanceof HTMLElement && el.classList.contains('leaflet-control-zoom')),
+    filter: (el: Node) =>
+      !(el instanceof HTMLElement && EXPORT_HIDDEN_CLASSES.some((name) => el.classList.contains(name))),
   };
   if (!crop) return toPng(node, options);
 

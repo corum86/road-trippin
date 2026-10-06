@@ -9,12 +9,20 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * actions go through history (history.back / history.go), and the popstate
  * handler is the single place that shrinks the stack — so UI buttons and the
  * system back gesture behave identically.
+ *
+ * `interceptBack` lets the top layer handle the system back gesture itself
+ * (e.g. a multi-step flow going back a step): when it returns true, the
+ * layer stays open. Back actions from the app's own buttons skip it.
  */
-export function useLayerStack<Layer>() {
+export function useLayerStack<Layer>(interceptBack?: (top: Layer) => boolean) {
   const [stack, setStack] = useState<Layer[]>([]);
   // mirror for callbacks that must read the latest stack without re-binding
   const stackRef = useRef(stack);
   stackRef.current = stack;
+  const interceptRef = useRef(interceptBack);
+  interceptRef.current = interceptBack;
+  // set while the app itself rewinds history, so its own pops aren't intercepted
+  const ownBack = useRef(false);
 
   useEffect(() => {
     // a reload can leave us on a deep entry with an empty stack; start clean
@@ -22,6 +30,14 @@ export function useLayerStack<Layer>() {
 
     const onPopState = (e: PopStateEvent) => {
       const depth = typeof e.state?.vmDepth === 'number' ? e.state.vmDepth : 0;
+      const current = stackRef.current;
+      const fromApp = ownBack.current;
+      ownBack.current = false;
+      if (!fromApp && depth < current.length && interceptRef.current?.(current[current.length - 1])) {
+        // the layer handled it; restore the history entry it still owns
+        history.pushState({ vmDepth: current.length }, '');
+        return;
+      }
       setStack((s) => (depth < s.length ? s.slice(0, depth) : s));
     };
     window.addEventListener('popstate', onPopState);
@@ -42,6 +58,7 @@ export function useLayerStack<Layer>() {
     if (n === 0) return;
     // only rewind history entries we actually own
     if ((history.state?.vmDepth ?? 0) === current.length) {
+      ownBack.current = true;
       history.go(-n);
     } else {
       setStack(current.slice(0, current.length - n));

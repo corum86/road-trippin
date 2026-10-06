@@ -4,7 +4,7 @@ import { useMapDataStore } from '../../store/mapDataStore';
 import type { Destination, MainLocation, Rating, Trip, TripStatus } from '../../types/models';
 import { useI18n } from '../../i18n/context';
 import { formatDayLabel, formatShortDate } from '../../services/dates';
-import { dayIndexByDestination, tripDayCount, tripDayDate } from '../../services/tripPlan';
+import { daysByDestination, tripDayCount, tripDayDate } from '../../services/tripPlan';
 import { estimateSuffix, formatDistance, formatDuration } from '../../services/routeFormat';
 import { fileToResizedDataUrl } from '../../services/imageResize';
 import { translateDestinationContent } from '../../services/geminiService';
@@ -16,7 +16,7 @@ import { allPhotos, useEnsureRoute } from './destinationHelpers';
 
 interface DestinationDetailScreenProps {
   destination: Destination;
-  home: MainLocation;
+  home: MainLocation | null;
   trip: Trip;
   /** mobile: full-screen layer; desktop: floating panel over the map */
   variant: 'mobile' | 'desktop';
@@ -51,7 +51,7 @@ export function DestinationDetailScreen({
   const setStatus = useMapDataStore((s) => s.setStatus);
   const setRating = useMapDataStore((s) => s.setRating);
   const updateVisit = useMapDataStore((s) => s.updateVisit);
-  const moveStop = useMapDataStore((s) => s.moveStop);
+  const toggleTripDay = useMapDataStore((s) => s.toggleTripDay);
   const addVisitPhoto = useMapDataStore((s) => s.addVisitPhoto);
   const removeVisitPhoto = useMapDataStore((s) => s.removeVisitPhoto);
   const updateDestination = useMapDataStore((s) => s.updateDestination);
@@ -62,7 +62,7 @@ export function DestinationDetailScreen({
   const { routeInfo, visit } = destination;
   const visited = destination.status === 'visited';
   const isDesktop = variant === 'desktop';
-  const scheduledDay = dayIndexByDestination(trip).get(destination.id);
+  const plannedDays = daysByDestination(trip).get(destination.id) ?? [];
   const photos = allPhotos(destination);
   const hero = photos[0];
 
@@ -163,7 +163,7 @@ export function DestinationDetailScreen({
       <div className="vm-detail-body">
         <div>
           <h1 className="vm-detail-title">{destination.name}</h1>
-          <div className="vm-detail-from">{t('detail.fromHome', { home: home.name })}</div>
+          {home && <div className="vm-detail-from">{t('detail.fromHome', { home: home.name })}</div>}
         </div>
 
         <div className="vm-stats">
@@ -201,17 +201,17 @@ export function DestinationDetailScreen({
 
         <section className="vm-detail-section">
           <SectionLabel>{t('detail.tripDay')}</SectionLabel>
-          {/* tapping a day moves the place there; tapping its current day unschedules it */}
+          {/* each day toggles on its own: a place can be visited on several days */}
           <div className="vm-day-chips" role="group" aria-label={t('detail.tripDay')}>
             {Array.from({ length: tripDayCount(trip) }, (_, day) => {
-              const active = scheduledDay === day;
+              const active = plannedDays.includes(day);
               return (
                 <button
                   key={day}
                   type="button"
                   className={`vm-day-chip${active ? ' vm-day-chip-active' : ''}`}
                   aria-pressed={active}
-                  onClick={() => moveStop(destination.id, active ? null : day)}
+                  onClick={() => toggleTripDay(destination.id, day)}
                 >
                   {t('trip.onDay', { n: day + 1 })}
                   <span className="vm-day-chip-date">{formatShortDate(tripDayDate(trip, day), lang)}</span>
@@ -219,6 +219,7 @@ export function DestinationDetailScreen({
               );
             })}
           </div>
+          {tripDayCount(trip) === 0 && <div className="vm-meta vm-detail-empty">{t('detail.noTripDates')}</div>}
         </section>
 
         {visited && (

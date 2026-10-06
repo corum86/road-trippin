@@ -10,10 +10,12 @@ import { useMapDataStore } from '../../store/mapDataStore';
 
 /**
  * Route line for list rows and cards. Falls back to a straight-line estimate
- * until OSRM has been asked (on first detail open).
+ * until OSRM has been asked (on first detail open). Empty while there is no
+ * home base to measure from.
  */
-export function routeText(dest: Destination, home: MainLocation, t: TranslateFn): string {
-  return formatRouteSummary(dest.routeInfo ?? estimateFromStraightLine(home.location, dest.location), t);
+export function routeText(dest: Destination, home: MainLocation | null, t: TranslateFn): string {
+  const route = dest.routeInfo ?? (home ? estimateFromStraightLine(home.location, dest.location) : null);
+  return route ? formatRouteSummary(route, t) : '';
 }
 
 export function statusLabel(dest: Destination, t: TranslateFn): string {
@@ -26,13 +28,13 @@ export function allPhotos(dest: Destination): Photo[] {
 }
 
 /** Fetches the OSRM route when the destination has none cached; returns whether it is loading. */
-export function useEnsureRoute(dest: Destination | undefined, home: MainLocation): boolean {
+export function useEnsureRoute(dest: Destination | undefined, home: MainLocation | null): boolean {
   const setRouteInfo = useMapDataStore((s) => s.setRouteInfo);
   const [loading, setLoading] = useState(false);
-  const needsRoute = !!dest && !dest.routeInfo;
+  const needsRoute = !!dest && !!home && !dest.routeInfo;
 
   useEffect(() => {
-    if (!dest || !needsRoute) return;
+    if (!dest || !home || !needsRoute) return;
     let cancelled = false;
     setLoading(true);
     fetchRoute(home.location, dest.location)
@@ -59,7 +61,8 @@ export function tripSummary(data: VacationMapData, lang: Lang) {
     dayCount: tripDayCount(trip),
     total: destinations.length,
     visited: destinations.filter((d) => d.status === 'visited').length,
-    dateRange: formatDateRange(trip.startDate, trip.endDate, lang),
+    /** null while the trip has no dates */
+    dateRange: trip.startDate && trip.endDate ? formatDateRange(trip.startDate, trip.endDate, lang) : null,
   };
 }
 

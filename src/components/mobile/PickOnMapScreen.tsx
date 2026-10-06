@@ -5,11 +5,13 @@ import { MapView } from '../map/MapView';
 import { FitToPoints } from '../map/MapViewport';
 import type { RouteDisplayMode } from '../../types/display';
 import { Icon } from '../ui/Icon';
+import { mapPoints } from '../../services/geo';
 
 interface PickOnMapScreenProps {
   data: VacationMapData;
   displayMode: RouteDisplayMode;
-  onPick: (lat: number, lng: number) => void;
+  /** `name` is set when a town's name was tapped rather than a bare map point */
+  onPick: (lat: number, lng: number, name?: string) => void;
   onCancel: () => void;
 }
 
@@ -18,7 +20,7 @@ const PICK_PADDING = { top: 110, right: 40, bottom: 60, left: 40 };
 export function PickOnMapScreen({ data, displayMode, onPick, onCancel }: PickOnMapScreenProps) {
   const { t } = useI18n();
   const points = useMemo(
-    () => [data.mainLocation.location, ...data.destinations.map((d) => d.location)],
+    () => mapPoints(data.mainLocation, data.destinations),
     [data.mainLocation, data.destinations],
   );
 
@@ -29,7 +31,8 @@ export function PickOnMapScreen({ data, displayMode, onPick, onCancel }: PickOnM
         selectedDestinationId={null}
         onSelectDestination={() => {}}
         onEditMainLocation={() => {}}
-        onMapClick={onPick}
+        onMapClick={(lat, lng) => onPick(lat, lng)}
+        onSelectPlace={(place) => onPick(place.location.lat, place.location.lng, place.name)}
         frameStyle={{ width: '100%', height: '100%' }}
         displayMode={displayMode}
         showLabels

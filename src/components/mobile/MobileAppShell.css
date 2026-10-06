@@ -276,6 +276,10 @@
   z-index: 1020;
 }
 
+.vm-mobile-layer-host-planner {
+  z-index: 1025;
+}
+
 .vm-mobile-layer-host-destination-form,
 .vm-mobile-layer-host-home-form {
   z-index: 1030;
@@ -287,6 +291,13 @@
 
 .vm-mobile-layer-host-confirm-delete {
   z-index: 1050;
+}
+
+/* these open from a tab itself, so they cover the bottom nav too */
+.vm-mobile-layer-host-confirm-clear-trip,
+.vm-mobile-layer-host-confirm-reset {
+  position: fixed;
+  z-index: 1100;
 }
 
 .vm-mobile-pick {

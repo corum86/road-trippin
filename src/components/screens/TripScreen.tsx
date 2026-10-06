@@ -20,9 +20,9 @@ import { useMapDataStore } from '../../store/mapDataStore';
 import type { Destination, MainLocation, VacationMapData } from '../../types/models';
 import { useI18n, type TranslateFn } from '../../i18n/context';
 import { formatDayLabel } from '../../services/dates';
-import { tripDayDate, visiblePlan } from '../../services/tripPlan';
+import { daysByDestination, tripDayDate, visiblePlan, type StopRef } from '../../services/tripPlan';
+import { shortPlaceName } from '../../services/placeNames';
 import { Icon } from '../ui/Icon';
-import type { ShowToast } from '../ui/useToast';
 import { dayCountLabel, routeText, tripSummary } from './destinationHelpers';
 
 interface TripScreenProps {
@@ -30,17 +30,18 @@ interface TripScreenProps {
   onOpenDetail: (id: string) => void;
   onOpenDates: () => void;
   onAddToDay: (dayIndex: number) => void;
-  onToast: ShowToast;
+  onSwap: (dayIndex: number, index: number) => void;
+  onReplan: () => void;
+  onOpenPlanner: () => void;
+  onClearTrip: () => void;
   /** highlighted stop (desktop, where Detail floats beside the timeline) */
   selectedId?: string | null;
 }
 
-/** Where a dragged place would land if released now. */
+/** Where a dragged visit would land if released now. */
 type DropZone = { target: 'tray' } | { target: 'day'; day: number; before: number };
 
 const TRAY_ID = 'tray';
-const itemId = (destinationId: string) => `item:${destinationId}`;
-const stopDropId = (destinationId: string) => `stop:${destinationId}`;
 const dayDropId = (day: number) => `day:${day}`;
 
 // Stop cards sit inside day rows, so a pointer over a card is over both;
@@ -49,7 +50,7 @@ const pickDropTarget: CollisionDetection = (args) => {
   const pointerHits = pointerWithin(args);
   // the keyboard sensor has no pointer; fall back to overlapping rectangles
   const hits = pointerHits.length > 0 ? pointerHits : rectIntersection(args);
-  const stop = hits.find((hit) => String(hit.id).startsWith('stop:'));
+  const stop = hits.find((hit) => String(hit.id).startsWith('drop:'));
   if (stop) return [stop];
   const tray = hits.find((hit) => hit.id === TRAY_ID);
   if (tray) return [tray];
@@ -61,16 +62,18 @@ export function TripScreen({
   onOpenDetail,
   onOpenDates,
   onAddToDay,
-  onToast,
+  onSwap,
+  onReplan,
+  onOpenPlanner,
+  onClearTrip,
   selectedId,
 }: TripScreenProps) {
   const { t, lang } = useI18n();
   const moveStop = useMapDataStore((s) => s.moveStop);
-  const autoPlan = useMapDataStore((s) => s.autoPlan);
-  const setPlan = useMapDataStore((s) => s.setPlan);
   const setTripName = useMapDataStore((s) => s.setTripName);
 
-  const [draggingId, setDraggingId] = useState<string | null>(null);
+  // the visit being dragged: a stop on a day, or a place from the tray
+  const [dragging, setDragging] = useState<StopRef | null>(null);
   const [zone, setZone] = useState<DropZone | null>(null);
   // the pointer's latest position, captured by collision detection
   const pointerY = useRef<number | null>(null);
@@ -88,11 +91,20 @@ export function TripScreen({
   const days = visiblePlan(trip).map((ids) =>
     ids.map((id) => byId.get(id)).filter((d): d is Destination => !!d),
   );
-  const scheduled = new Set(days.flat().map((d) => d.id));
-  const unscheduled = data.destinations.filter((d) => !scheduled.has(d.id));
+  const daysOf = daysByDestination(trip);
+  const unscheduled = data.destinations.filter((d) => !daysOf.has(d.id));
   const { dayCount, total, visited, dateRange } = tripSummary(data, lang);
-  const dragging = draggingId ? (byId.get(draggingId) ?? null) : null;
+  const draggedPlace = dragging ? (byId.get(dragging.id) ?? null) : null;
   const trayVisible = unscheduled.length > 0 || dragging !== null;
+  const noPlaces = data.destinations.length === 0;
+  const noDates = dayCount === 0;
+  // an empty trip has nothing to clear
+  const blankTrip =
+    trip.name === '' &&
+    noDates &&
+    trip.plan.every((ids) => ids.length === 0) &&
+    !trip.preferences &&
+    !trip.suggestions?.length;
 
   const collisionDetection: CollisionDetection = (args) => {
     pointerY.current = args.pointerCoordinates?.y ?? null;
@@ -114,7 +126,7 @@ export function TripScreen({
   }
 
   function handleDragStart(event: DragStartEvent) {
-    setDraggingId(String(event.active.id).slice('item:'.length));
+    setDragging((event.active.data.current as { ref: StopRef } | undefined)?.ref ?? null);
   }
 
   function handleDragMove(event: DragMoveEvent) {
@@ -124,26 +136,19 @@ export function TripScreen({
 
   function handleDragEnd(event: DragEndEvent) {
     const target = zoneFor(event);
-    if (draggingId && target) {
-      if (target.target === 'tray') moveStop(draggingId, null);
-      else moveStop(draggingId, target.day, target.before);
+    if (dragging && target) {
+      if (target.target === 'tray') {
+        if (dragging.day !== null) moveStop(dragging, null);
+      } else {
+        moveStop(dragging, target.day, target.before);
+      }
     }
     resetDrag();
   }
 
   function resetDrag() {
-    setDraggingId(null);
+    setDragging(null);
     setZone(null);
-  }
-
-  function handleAutoPlan() {
-    const previousPlan = trip.plan;
-    const count = autoPlan();
-    if (count === 0) return;
-    onToast(t('trip.autoPlanned', { n: count }), 'success', {
-      label: t('common.undo'),
-      onAction: () => setPlan(previousPlan),
-    });
   }
 
   return (
@@ -158,33 +163,41 @@ export function TripScreen({
     >
       <div className={`vm-screen vm-trip${dragging ? ' vm-trip-dragging' : ''}`}>
         <div className={`vm-scroll${trayVisible ? ' vm-trip-scroll-with-tray' : ''}`}>
-          <TripNameInput
-            key={trip.name}
-            name={trip.name}
-            placeholder={t('tabs.trip')}
-            label={t('trip.name')}
-            onCommit={setTripName}
-          />
+          <div className="vm-trip-header">
+            <TripNameInput
+              key={trip.name}
+              name={trip.name}
+              placeholder={t('tabs.trip')}
+              label={t('trip.name')}
+              onCommit={setTripName}
+            />
+            <button type="button" className="vm-trip-new-btn" onClick={onOpenPlanner}>
+              <Icon name="travel_explore" size={20} />
+              {t('trip.newTrip')}
+            </button>
+          </div>
 
           <div className="vm-trip-actions">
             <button type="button" className="vm-trip-dates-btn" onClick={onOpenDates}>
               <Icon name="edit_calendar" size={20} className="vm-text-teal" />
-              <span className="vm-trip-dates-range">{dateRange}</span>
+              <span className="vm-trip-dates-range">{dateRange ?? t('trip.setDates')}</span>
               <Icon name="expand_more" size={20} className="vm-text-muted" />
             </button>
+            {/* re-planning spreads places over the days by drive time from the home base */}
             <button
               type="button"
               className="vm-trip-autoplan-btn"
-              disabled={unscheduled.length === 0}
-              onClick={handleAutoPlan}
+              disabled={noPlaces || noDates || !home}
+              onClick={onReplan}
             >
-              <Icon name="auto_awesome" size={20} />
-              {t('trip.autoPlan')}
+              <Icon name="autorenew" size={20} />
+              {t('trip.replan')}
             </button>
           </div>
 
           <div className="vm-trip-subline">
-            {dayCountLabel(dayCount, t)} · {t('trip.visitedOf', { v: visited, n: total })}
+            {noDates ? '' : `${dayCountLabel(dayCount, t)} · `}
+            {t('trip.visitedOf', { v: visited, n: total })}
           </div>
           <div
             className="vm-progress"
@@ -196,6 +209,32 @@ export function TripScreen({
             <div className="vm-progress-fill" style={{ width: `${total ? (visited / total) * 100 : 0}%` }} />
           </div>
 
+          {noPlaces && (
+            <div className="vm-trip-empty-card">
+              <Icon name="auto_awesome" size={28} className="vm-text-teal" />
+              <h2 className="vm-trip-empty-title">
+                {home ? t('trip.planEmptyTitle', { home: shortPlaceName(home.name) }) : t('trip.planEmptyTitleNoHome')}
+              </h2>
+              <p className="vm-trip-empty-body">{t('trip.planEmptyBody')}</p>
+              <button type="button" className="vm-btn vm-btn-primary" onClick={onOpenPlanner}>
+                <Icon name="travel_explore" size={20} />
+                {t('trip.startPlanner')}
+              </button>
+            </div>
+          )}
+
+          {noDates && !noPlaces && (
+            <div className="vm-trip-empty-card">
+              <Icon name="edit_calendar" size={28} className="vm-text-teal" />
+              <h2 className="vm-trip-empty-title">{t('trip.noDatesTitle')}</h2>
+              <p className="vm-trip-empty-body">{t('trip.noDatesBody')}</p>
+              <button type="button" className="vm-btn vm-btn-primary" onClick={onOpenDates}>
+                <Icon name="edit_calendar" size={20} />
+                {t('trip.setDates')}
+              </button>
+            </div>
+          )}
+
           <ol className="vm-timeline">
             {days.map((stops, day) => (
               <DayRow
@@ -203,24 +242,35 @@ export function TripScreen({
                 day={day}
                 dateLabel={formatDayLabel(tripDayDate(trip, day), lang)}
                 stops={stops}
+                daysOf={daysOf}
                 home={home}
                 zone={zone?.target === 'day' && zone.day === day ? zone : null}
-                draggingId={draggingId}
+                dragging={dragging}
                 selectedId={selectedId ?? null}
                 t={t}
                 onAdd={() => onAddToDay(day)}
                 onOpenDetail={onOpenDetail}
-                onRemove={(id) => moveStop(id, null)}
+                onSwap={(index) => onSwap(day, index)}
+                onRemove={(ref) => moveStop(ref, null)}
               />
             ))}
           </ol>
+
+          {!blankTrip && (
+            <div className="vm-trip-footer">
+              <button type="button" className="vm-btn vm-btn-sm vm-btn-tint-danger" onClick={onClearTrip}>
+                <Icon name="delete_sweep" size={18} />
+                {t('trip.clear')}
+              </button>
+            </div>
+          )}
         </div>
 
         {trayVisible && (
           <Tray
             places={unscheduled}
             hot={zone?.target === 'tray'}
-            draggingId={draggingId}
+            dragging={dragging}
             t={t}
             onOpenDetail={onOpenDetail}
           />
@@ -228,14 +278,14 @@ export function TripScreen({
 
         {/* the copy that follows the pointer; the original stays put, dimmed */}
         <DragOverlay dropAnimation={null}>
-          {dragging &&
-            (scheduled.has(dragging.id) ? (
+          {dragging && draggedPlace &&
+            (dragging.day !== null ? (
               <div className="vm-stop-card vm-stop-card-overlay">
-                <StopCardContent dest={dragging} home={home} t={t} />
+                <StopCardContent dest={draggedPlace} home={home} revisitOf={null} t={t} />
               </div>
             ) : (
               <div className="vm-trip-chip vm-trip-chip-overlay">
-                <ChipContent dest={dragging} />
+                <ChipContent dest={draggedPlace} />
               </div>
             ))}
         </DragOverlay>
@@ -248,6 +298,10 @@ function sameZone(a: DropZone | null, b: DropZone | null): boolean {
   if (a === null || b === null) return a === b;
   if (a.target === 'tray' || b.target === 'tray') return a.target === b.target;
   return a.day === b.day && a.before === b.before;
+}
+
+function isSameStop(ref: StopRef | null, day: number, index: number): boolean {
+  return ref !== null && ref.day === day && 'index' in ref && ref.index === index;
 }
 
 /** Trip title, editable in place: looks like a heading, saves when it loses focus. */
@@ -284,28 +338,32 @@ interface DayRowProps {
   day: number;
   dateLabel: string;
   stops: Destination[];
-  home: MainLocation;
+  daysOf: Map<string, number[]>;
+  home: MainLocation | null;
   /** the drop zone, when it is on this day */
   zone: { before: number } | null;
-  draggingId: string | null;
+  dragging: StopRef | null;
   selectedId: string | null;
   t: TranslateFn;
   onAdd: () => void;
   onOpenDetail: (id: string) => void;
-  onRemove: (id: string) => void;
+  onSwap: (index: number) => void;
+  onRemove: (ref: StopRef) => void;
 }
 
 function DayRow({
   day,
   dateLabel,
   stops,
+  daysOf,
   home,
   zone,
-  draggingId,
+  dragging,
   selectedId,
   t,
   onAdd,
   onOpenDetail,
+  onSwap,
   onRemove,
 }: DayRowProps) {
   const { setNodeRef } = useDroppable({ id: dayDropId(day), data: { day, count: stops.length } });
@@ -339,25 +397,31 @@ function DayRow({
           </button>
         </div>
         <div className="vm-day-stops">
-          {stops.map((stop, index) => (
-            <StopCard
-              key={stop.id}
-              dest={stop}
-              day={day}
-              index={index}
-              home={home}
-              // 3px teal line where the dragged place would be inserted
-              insertion={
-                zone?.before === index ? 'before' : zone?.before === count && index === count - 1 ? 'after' : null
-              }
-              isDragged={draggingId === stop.id}
-              dragActive={draggingId !== null}
-              selected={stop.id === selectedId}
-              t={t}
-              onOpen={() => onOpenDetail(stop.id)}
-              onRemove={() => onRemove(stop.id)}
-            />
-          ))}
+          {stops.map((stop, index) => {
+            // a later visit of a place already planned for an earlier day
+            const earlier = (daysOf.get(stop.id) ?? []).filter((d) => d < day);
+            return (
+              <StopCard
+                key={`${stop.id}-${index}`}
+                dest={stop}
+                day={day}
+                index={index}
+                home={home}
+                revisitOf={earlier.length > 0 ? earlier[0] : null}
+                // 3px teal line where the dragged place would be inserted
+                insertion={
+                  zone?.before === index ? 'before' : zone?.before === count && index === count - 1 ? 'after' : null
+                }
+                isDragged={isSameStop(dragging, day, index)}
+                dragActive={dragging !== null}
+                selected={stop.id === selectedId}
+                t={t}
+                onOpen={() => onOpenDetail(stop.id)}
+                onSwap={() => onSwap(index)}
+                onRemove={() => onRemove({ id: stop.id, day, index })}
+              />
+            );
+          })}
           {count === 0 && (
             <button type="button" className="vm-day-empty" onClick={onAdd}>
               {t('trip.dropHere')}
@@ -373,31 +437,45 @@ interface StopCardProps {
   dest: Destination;
   day: number;
   index: number;
-  home: MainLocation;
+  home: MainLocation | null;
+  /** index of the earlier day this place is first visited on, for a revisit */
+  revisitOf: number | null;
   insertion: 'before' | 'after' | null;
   isDragged: boolean;
   dragActive: boolean;
   selected: boolean;
   t: TranslateFn;
   onOpen: () => void;
+  onSwap: () => void;
   onRemove: () => void;
 }
+
+// keep a press on a card's own buttons from starting a drag of the card
+const stopDragStart = {
+  onPointerDown: (e: React.SyntheticEvent) => e.stopPropagation(),
+  onMouseDown: (e: React.SyntheticEvent) => e.stopPropagation(),
+  onTouchStart: (e: React.SyntheticEvent) => e.stopPropagation(),
+  onKeyDown: (e: React.SyntheticEvent) => e.stopPropagation(),
+};
 
 function StopCard({
   dest,
   day,
   index,
   home,
+  revisitOf,
   insertion,
   isDragged,
   dragActive,
   selected,
   t,
   onOpen,
+  onSwap,
   onRemove,
 }: StopCardProps) {
-  const draggable = useDraggable({ id: itemId(dest.id) });
-  const droppable = useDroppable({ id: stopDropId(dest.id), data: { day, index } });
+  const ref: StopRef = { id: dest.id, day, index };
+  const draggable = useDraggable({ id: `stop:${day}:${index}`, data: { ref } });
+  const droppable = useDroppable({ id: `drop:${day}:${index}`, data: { day, index } });
   const classes = [
     'vm-stop-card',
     selected && 'vm-card-selected',
@@ -422,17 +500,26 @@ function StopCard({
         if (e.key === 'Enter' && !dragActive && e.target === e.currentTarget) onOpen();
       }}
     >
-      <StopCardContent dest={dest} home={home} t={t} />
+      <StopCardContent dest={dest} home={home} revisitOf={revisitOf} t={t} />
       <button
         type="button"
-        className="vm-stop-remove"
+        className="vm-stop-action vm-stop-swap"
+        aria-label={t('trip.swap')}
+        title={t('trip.swap')}
+        {...stopDragStart}
+        onClick={(e) => {
+          e.stopPropagation();
+          onSwap();
+        }}
+      >
+        <Icon name="swap_horiz" size={20} />
+      </button>
+      <button
+        type="button"
+        className="vm-stop-action vm-stop-remove"
         aria-label={t('trip.removeFromDay')}
         title={t('trip.removeFromDay')}
-        // keep a press on the button from starting a drag of the card
-        onPointerDown={(e) => e.stopPropagation()}
-        onMouseDown={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onKeyDown={(e) => e.stopPropagation()}
+        {...stopDragStart}
         onClick={(e) => {
           e.stopPropagation();
           onRemove();
@@ -444,7 +531,17 @@ function StopCard({
   );
 }
 
-function StopCardContent({ dest, home, t }: { dest: Destination; home: MainLocation; t: TranslateFn }) {
+function StopCardContent({
+  dest,
+  home,
+  revisitOf,
+  t,
+}: {
+  dest: Destination;
+  home: MainLocation | null;
+  revisitOf: number | null;
+  t: TranslateFn;
+}) {
   const visited = dest.status === 'visited';
   return (
     <>
@@ -457,7 +554,15 @@ function StopCardContent({ dest, home, t }: { dest: Destination; home: MainLocat
       />
       <span className="vm-stop-text">
         <span className="vm-stop-name">{dest.name}</span>
-        <span className="vm-meta">{routeText(dest, home, t)}</span>
+        <span className="vm-stop-meta">
+          {revisitOf !== null && (
+            <span className="vm-revisit-badge">
+              <Icon name="replay" size={14} />
+              {t('trip.revisitOf', { n: revisitOf + 1 })}
+            </span>
+          )}
+          <span className="vm-meta vm-stop-route">{routeText(dest, home, t)}</span>
+        </span>
       </span>
     </>
   );
@@ -466,13 +571,13 @@ function StopCardContent({ dest, home, t }: { dest: Destination; home: MainLocat
 interface TrayProps {
   places: Destination[];
   hot: boolean;
-  draggingId: string | null;
+  dragging: StopRef | null;
   t: TranslateFn;
   onOpenDetail: (id: string) => void;
 }
 
-/** Places on no day. Also the drop target that takes a place off its day. */
-function Tray({ places, hot, draggingId, t, onOpenDetail }: TrayProps) {
+/** Places on no day. Also the drop target that takes a visit off its day. */
+function Tray({ places, hot, dragging, t, onOpenDetail }: TrayProps) {
   const { setNodeRef } = useDroppable({ id: TRAY_ID });
   return (
     <div ref={setNodeRef} className={`vm-trip-tray${hot ? ' vm-trip-tray-hot' : ''}`}>
@@ -485,8 +590,8 @@ function Tray({ places, hot, draggingId, t, onOpenDetail }: TrayProps) {
           <TrayChip
             key={dest.id}
             dest={dest}
-            isDragged={draggingId === dest.id}
-            dragActive={draggingId !== null}
+            isDragged={dragging?.day === null && dragging.id === dest.id}
+            dragActive={dragging !== null}
             onOpen={() => onOpenDetail(dest.id)}
           />
         ))}
@@ -507,7 +612,8 @@ function TrayChip({
   dragActive: boolean;
   onOpen: () => void;
 }) {
-  const { setNodeRef, attributes, listeners } = useDraggable({ id: itemId(dest.id) });
+  const ref: StopRef = { id: dest.id, day: null };
+  const { setNodeRef, attributes, listeners } = useDraggable({ id: `tray:${dest.id}`, data: { ref } });
   return (
     <div
       ref={setNodeRef}

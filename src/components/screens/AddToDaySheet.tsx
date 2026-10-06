@@ -2,7 +2,7 @@ import { useMapDataStore } from '../../store/mapDataStore';
 import type { VacationMapData } from '../../types/models';
 import { useI18n } from '../../i18n/context';
 import { formatDayLabel } from '../../services/dates';
-import { dayIndexByDestination, tripDayDate } from '../../services/tripPlan';
+import { daysByDestination, tripDayDate } from '../../services/tripPlan';
 import { Icon } from '../ui/Icon';
 import { Sheet } from '../ui/Sheet';
 import { routeText } from './destinationHelpers';
@@ -17,12 +17,13 @@ interface AddToDaySheetProps {
 
 /**
  * Checklist of every destination for one trip day. Ticking applies at once:
- * a place on another day moves here, unticking unschedules it.
+ * it adds a visit on this day (a revisit if the place is on other days too),
+ * and unticking removes only this day's visit.
  */
 export function AddToDaySheet({ variant, data, dayIndex, onClose }: AddToDaySheetProps) {
   const { t, lang } = useI18n();
-  const moveStop = useMapDataStore((s) => s.moveStop);
-  const dayOf = dayIndexByDestination(data.trip);
+  const toggleTripDay = useMapDataStore((s) => s.toggleTripDay);
+  const daysOf = daysByDestination(data.trip);
 
   return (
     <Sheet
@@ -36,12 +37,17 @@ export function AddToDaySheet({ variant, data, dayIndex, onClose }: AddToDayShee
           {t('trip.addToDay', { n: dayIndex + 1 })}
         </h2>
         <p className="vm-sheet-hint">{formatDayLabel(tripDayDate(data.trip, dayIndex), lang)}</p>
+        <p className="vm-add-to-day-revisit-hint">
+          <Icon name="replay" size={16} />
+          {t('trip.sheetHint')}
+        </p>
       </div>
 
       <div className="vm-add-to-day-list">
         {data.destinations.map((dest) => {
-          const currentDay = dayOf.get(dest.id);
-          const onThisDay = currentDay === dayIndex;
+          const days = daysOf.get(dest.id) ?? [];
+          const onThisDay = days.includes(dayIndex);
+          const otherDays = days.filter((d) => d !== dayIndex);
           return (
             <button
               key={dest.id}
@@ -49,7 +55,7 @@ export function AddToDaySheet({ variant, data, dayIndex, onClose }: AddToDayShee
               role="checkbox"
               aria-checked={onThisDay}
               className="vm-add-to-day-row"
-              onClick={() => moveStop(dest.id, onThisDay ? null : dayIndex)}
+              onClick={() => toggleTripDay(dest.id, dayIndex)}
             >
               <Icon
                 name={onThisDay ? 'check_box' : 'check_box_outline_blank'}
@@ -61,8 +67,10 @@ export function AddToDaySheet({ variant, data, dayIndex, onClose }: AddToDayShee
                 <span className="vm-add-to-day-name">{dest.name}</span>
                 <span className="vm-meta">{routeText(dest, data.mainLocation, t)}</span>
               </span>
-              {currentDay !== undefined && !onThisDay && (
-                <span className="vm-add-to-day-tag">{t('trip.onDay', { n: currentDay + 1 })}</span>
+              {otherDays.length > 0 && (
+                <span className="vm-add-to-day-tag">
+                  {t('trip.alsoDay', { n: otherDays.map((d) => d + 1).join(', ') })}
+                </span>
               )}
             </button>
           );

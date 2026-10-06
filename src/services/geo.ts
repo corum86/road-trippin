@@ -1,4 +1,4 @@
-import type { LatLng } from '../types/models';
+import type { Destination, LatLng, MainLocation } from '../types/models';
 
 const EARTH_RADIUS_METERS = 6371000;
 
@@ -72,4 +72,9 @@ export function trimQuadraticBezier(
     },
     end: { x: at(from.x, control.x, to.x), y: at(from.y, control.y, to.y) },
   };
+}
+
+/** Every pin on the map: the home base (when there is one), then the places. */
+export function mapPoints(home: MainLocation | null, destinations: Destination[]): LatLng[] {
+  return [...(home ? [home.location] : []), ...destinations.map((d) => d.location)];
 }

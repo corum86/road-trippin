@@ -433,3 +433,63 @@
 .leaflet-tooltip.vm-pin-label::before {
   display: none;
 }
+
+/* selectable town names while picking a location: a zero-size Leaflet marker
+   on the coordinate, with the pill centred on it */
+.vm-town-label:focus {
+  outline: none;
+}
+
+.vm-town-label-pill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 3px 9px;
+  border: 1px solid var(--accent-2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  color: var(--accent-2-dark);
+  font: 600 11px/1.45 'Poppins', system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+  transform: translate(-50%, -50%);
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+/* a finger-sized target around the small pill */
+.vm-town-label-pill::after {
+  content: '';
+  position: absolute;
+  inset: -7px;
+}
+
+.vm-town-label-city .vm-town-label-pill {
+  font-weight: 700;
+}
+
+.vm-town-label-village .vm-town-label-pill {
+  font-weight: 500;
+}
+
+.vm-town-label:hover .vm-town-label-pill,
+.vm-town-label:focus-visible .vm-town-label-pill {
+  background: var(--accent-2);
+  color: #fff;
+}
+
+.vm-town-labels-status {
+  position: absolute;
+  bottom: 30px;
+  left: 12px;
+  z-index: 900;
+  padding: 5px 12px;
+  border-radius: 14px;
+  background: rgba(43, 33, 24, 0.82);
+  color: #fff;
+  font: 500 11px/1.45 'Poppins', system-ui, sans-serif;
+  white-space: nowrap;
+  pointer-events: none;
+}

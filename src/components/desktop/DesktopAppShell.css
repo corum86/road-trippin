@@ -259,6 +259,14 @@
 }
 
 /* Trip */
+.vm-desktop-panel .vm-trip-header {
+  padding: 28px 20px 0 24px;
+}
+
+.vm-desktop-panel .vm-trip-header .vm-trip-name {
+  padding: 0;
+}
+
 .vm-desktop-panel .vm-trip-actions {
   padding: 12px 20px 0;
 }
@@ -326,6 +334,44 @@
 .vm-sheet-popover .vm-dates-day {
   width: 38px;
   height: 38px;
+}
+
+/* swap and re-plan dialogs */
+.vm-sheet-dialog.vm-swap,
+.vm-sheet-dialog.vm-replan {
+  width: 460px;
+}
+
+.vm-sheet-dialog .vm-swap-header {
+  padding: 22px 24px 10px;
+}
+
+.vm-sheet-dialog .vm-replan-title {
+  padding: 22px 24px 4px;
+}
+
+.vm-sheet-dialog .vm-replan-body {
+  padding: 8px 24px 4px;
+  scrollbar-width: thin;
+}
+
+.vm-sheet-dialog .vm-replan-body .vm-day-chips {
+  margin: 0 -24px;
+  padding: 0 24px;
+}
+
+.vm-sheet-dialog .vm-day-chip {
+  height: 36px;
+  border-radius: 18px;
+}
+
+.vm-sheet-dialog .vm-swap-list {
+  padding: 0 14px;
+  scrollbar-width: thin;
+}
+
+.vm-sheet-dialog .vm-sheet-footer {
+  padding: 14px 20px 18px;
 }
 
 /* add-to-day dialog */
