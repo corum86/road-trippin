@@ -8,11 +8,16 @@ import { Icon } from '../ui/Icon';
 
 interface AiSearchTriggerProps {
   onError: (message: string) => void;
+  /**
+   * Takes the findings instead of the review opening here: for a shell that
+   * shows the review as one of its own layers (mobile, for the back gesture).
+   */
+  onResults?: (results: DestinationAiResult[]) => void;
 }
 
 /** Icon button that researches every destination with Gemini, then opens the review stepper. */
-export function AiSearchTrigger({ onError }: AiSearchTriggerProps) {
-  const { t } = useI18n();
+export function AiSearchTrigger({ onError, onResults }: AiSearchTriggerProps) {
+  const { t, lang } = useI18n();
   const data = useMapDataStore((s) => s.data);
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null);
@@ -32,10 +37,13 @@ export function AiSearchTrigger({ onError }: AiSearchTriggerProps) {
       // Destinations are researched one at a time (not in parallel) with
       // spacing between requests to stay under the Gemini free-tier rate
       // limit — see geminiService.fetchAiFindingsForAllDestinations.
-      const found = await fetchAiFindingsForAllDestinations(destinations, (completed, total) =>
-        setProgress({ completed, total }),
+      const found = await fetchAiFindingsForAllDestinations(
+        destinations,
+        (completed, total) => setProgress({ completed, total }),
+        lang,
       );
-      setResults(found);
+      if (onResults) onResults(found);
+      else setResults(found);
     } catch (err) {
       onError(err instanceof Error ? err.message : t('ai.failed'));
     } finally {

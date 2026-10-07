@@ -36,6 +36,8 @@ data class DestinationAiResult(
     val destinationName: String,
     /** null on success */
     val error: String? = null,
+    /** the sights were checked with Google Search, not only recalled by the model */
+    val grounded: Boolean = false,
     val findings: List<AiFinding> = emptyList(),
 )
 

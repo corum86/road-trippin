@@ -26,5 +26,7 @@ export interface DestinationAiResult {
   destinationName: string;
   status: 'success' | 'error';
   error?: string;
+  /** the sights were checked with Google Search, not only recalled by the model */
+  grounded?: boolean;
   findings: AiFinding[];
 }

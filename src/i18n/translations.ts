@@ -59,6 +59,7 @@ const en = {
   'ai.researchAll': 'Research all destinations with AI',
   'ai.unavailable': 'AI search unavailable — add VITE_GEMINI_API_KEY to your .env file.',
   'ai.failed': 'AI search failed.',
+  'ai.grounded': 'Checked with Google Search',
 
   'stepper.counter': 'Destination {current} of {total}',
   'stepper.error': "Gemini couldn't be reached for this destination: {error}",
@@ -420,6 +421,7 @@ const el: Record<TranslationKey, string> = {
   'ai.researchAll': 'Έρευνα όλων των προορισμών με AI',
   'ai.unavailable': 'Η αναζήτηση AI δεν είναι διαθέσιμη — προσθέστε το VITE_GEMINI_API_KEY στο αρχείο .env.',
   'ai.failed': 'Η αναζήτηση AI απέτυχε.',
+  'ai.grounded': 'Ελεγμένο με Αναζήτηση Google',
 
   'stepper.counter': 'Προορισμός {current} από {total}',
   'stepper.error': 'Δεν ήταν δυνατή η επικοινωνία με το Gemini για αυτόν τον προορισμό: {error}',

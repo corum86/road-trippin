@@ -4,6 +4,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalFontFamilyResolver
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
@@ -265,6 +266,49 @@ class FlowTest {
         assertEquals(setOf(parga.id, syvota.id), planned.toSet())
         assertTrue(data.trip.plan.first().isEmpty())
         capture("20-trip-after-planner")
+    }
+
+    @Test
+    fun researchEveryPlaceFromPlaces() {
+        val store = tripStore()
+        // two places are enough: they are researched a few seconds apart
+        store.data!!.destinations.drop(2).forEach { store.removeDestination(it.id) }
+        val (preveza, korfu) = store.data!!.destinations
+        val services = testServices(store, geminiKey = "test-key", http = fakeHttpClient(::cannedBackend))
+        compose.setContent { VacationMapRoot(services) }
+
+        compose.onNodeWithText("Places").performClick()
+        // the research button sits beside "Add destination"
+        compose.onNodeWithText("Add destination").assertExists()
+        capture("21-places-with-research")
+        compose.onNodeWithContentDescription("Search with AI").performClick()
+        // the counter is set in capitals
+        waitForText("DESTINATION 1 OF 2", timeoutMs = 60_000)
+        // its name heads the review (and is still in the Places list underneath)
+        assertEquals(2, compose.onAllNodesWithText(preveza.name).fetchSemanticsNodes().size)
+        // the canned Gemini answers the search-grounded request
+        compose.onNodeWithText("Checked with Google Search").assertExists()
+        compose.onNodeWithText("Castle of Parga").assertExists()
+        compose.onNodeWithText("en.wikipedia.org").assertExists()
+        capture("22-research-review")
+
+        // a card's button saves its text, photo and link to the place, once
+        compose.onNodeWithContentDescription("Add “Castle of Parga” to the destination").performScrollTo().performClick()
+        compose.onNodeWithText("Added ✓").assertExists()
+        val saved = store.data!!.destinations.first { it.id == preveza.id }
+        assertEquals(preveza.attractions + "Castle of Parga: Walk up for the view over the bay.", saved.attractions)
+        assertEquals(preveza.photos.size + 1, saved.photos.size)
+        assertEquals("https://en.wikipedia.org/wiki/Castle_of_Parga", saved.links.last().url)
+        capture("22-research-review-added")
+
+        compose.onNodeWithText("Next →").performClick()
+        compose.onNodeWithText("DESTINATION 2 OF 2").assertExists()
+        assertEquals(2, compose.onAllNodesWithText(korfu.name).fetchSemanticsNodes().size)
+        // closing the review returns to Places; the other place was left as it was
+        compose.onNodeWithContentDescription("Close").performClick()
+        compose.onNodeWithText("DESTINATION 2 OF 2").assertDoesNotExist()
+        compose.onNodeWithText("Add destination").assertExists()
+        assertEquals(korfu, store.data!!.destinations.first { it.id == korfu.id })
     }
 
     @Test

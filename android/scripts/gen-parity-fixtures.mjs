@@ -283,6 +283,24 @@ for (let i = 0; i < 60; i++) {
   record('rangeEndOf', [{ start, end }], range.rangeEndOf({ start, end }));
 }
 
+// --- text the model garbled ---------------------------------------------------------------
+const aiFindings = await load('src/services/aiFindings.ts');
+const TEXTS = [
+  'Το ιστορικό κάστρο της πόλης χρονολογείται από τη βυζαντινή εποχή.',
+  'Λitapoitaúpi To Bapoufti afetepó tis mótis, êva fpocifiko paiko-avtoptiko pvnúmio tov 16ov divoa me Evtutfosiako fpoloyioko fipyo.',
+  'Βρίσκεται στο πάρκο Λitharitsia και φιλοξενεί ευρήματα από όλη την Ήπειρο.',
+  'Στο Πάρκο Λιμενάρχη Μουстаκη φιλοξενεί ευρήματα από όλη την Ήπειρο.',
+  'Βρίσκεται στο χωριό Μουζα这一切ι και φιλοξενεί κέρινα ομοιώματα.',
+  'Ιστορία του Αλή Π。 Δια',
+  'τα παραδοσιακά ταverna με τοπικές γεύσεις και το Λitharitsia πάρκο',
+  'Its Kale (Ιτς Καλέ): η εσωτερική ακρόπολη του κάστρου, μνημείο UNESCO.',
+  'Its Kale',
+  'A Venetian castle above a colourful harbour town.',
+  'Parga — καλό',
+  '',
+];
+for (const text of TEXTS) for (const lang of ['el', 'en']) record('looksGarbled', [text, lang], aiFindings.looksGarbled(text, lang));
+
 // --- migration ------------------------------------------------------------------------
 const seed = JSON.parse(readFileSync(resolve(root, 'public/data/vacation-data.json'), 'utf8'));
 const explicitTrip = { name: 'Epirus summer', startDate: '2026-07-13', endDate: '2026-07-18' };

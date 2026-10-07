@@ -119,6 +119,21 @@ internal fun keptFindings(research: ResearchState?, picks: List<Boolean>?): List
 internal fun attractionOf(finding: AiFinding): String =
     if (finding.name.isNotEmpty() && finding.text.isNotEmpty()) "${finding.name}: ${finding.text}" else finding.name.ifEmpty { finding.text }
 
+/**
+ * The destination with a finding saved into it: its text, photo and link,
+ * skipping what the destination already has.
+ */
+internal fun Destination.withFinding(finding: AiFinding): Destination {
+    val line = attractionOf(finding)
+    val photo = finding.photo?.takeIf { found -> photos.none { it.url == found.imageUrl } }
+    val link = finding.link?.takeIf { found -> links.none { it.url == found.url } }
+    return copy(
+        attractions = if (line.isEmpty() || line in attractions) attractions else attractions + line,
+        photos = if (photo == null) photos else photos + Photo(newId(), photo.imageUrl, photo.sourceTitle),
+        links = if (link == null) links else links + LinkItem(newId(), link.label, link.url),
+    )
+}
+
 /** How many photos, things to do and links the findings come to. */
 internal class FoundTotals(val photos: Int, val facts: Int, val links: Int)
 

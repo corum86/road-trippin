@@ -66,6 +66,7 @@ import io.github.corum86.vacationmap.model.PlaceSuggestion
 import io.github.corum86.vacationmap.model.TravelGroup
 import io.github.corum86.vacationmap.model.TravelStyle
 import io.github.corum86.vacationmap.net.DestinationAiResult
+import io.github.corum86.vacationmap.ui.components.GroundedChip
 import io.github.corum86.vacationmap.ui.components.Icon
 import io.github.corum86.vacationmap.ui.components.PhotoImage
 import io.github.corum86.vacationmap.ui.components.SectionLabel
@@ -629,6 +630,8 @@ internal fun ReviewStep(
             VmText(driveLine(place, t), size = 12.sp, color = VmColors.TextMuted)
         }
     }
+
+    if (result?.grounded == true) GroundedChip()
 
     if (findings.isEmpty()) {
         DashedNote(t("wizard.nothingFound"))

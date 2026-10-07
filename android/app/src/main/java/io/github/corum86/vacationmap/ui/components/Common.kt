@@ -92,6 +92,19 @@ fun VmButton(
     }
 }
 
+/** Marks research findings that came from a Google Search, not only the model's memory. */
+@Composable
+fun GroundedChip(modifier: Modifier = Modifier) {
+    Row(
+        modifier.background(VmColors.Accent2Tint, RoundedCornerShape(12.dp)).padding(start = 8.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon("travel_explore", size = 16.dp, tint = VmColors.Accent2)
+        VmText(LocalTranslator.current("ai.grounded"), size = 12.sp, weight = FontWeight.SemiBold, color = VmColors.Accent2)
+    }
+}
+
 /** A plain text button: 40 high, teal 600. */
 @Composable
 fun TextBtn(

@@ -30,6 +30,7 @@ import io.github.corum86.vacationmap.logic.hashString
 import io.github.corum86.vacationmap.logic.haversineDistanceMeters
 import io.github.corum86.vacationmap.logic.isIsoDate
 import io.github.corum86.vacationmap.logic.isReachable
+import io.github.corum86.vacationmap.logic.looksGarbled
 import io.github.corum86.vacationmap.logic.migrateVacationMapData
 import io.github.corum86.vacationmap.logic.movePlanStop
 import io.github.corum86.vacationmap.logic.pickRangeDate
@@ -222,6 +223,8 @@ class ParityTest {
         val trimmed = trimQuadraticBezier(a[0].point(), a[1].point(), a[2].point(), a[3].d())
         buildJsonObject { put("control", json(trimmed.control)); put("end", json(trimmed.end)) }
     }
+
+    @Test fun looksGarbled() = check("looksGarbled") { a -> json(looksGarbled(a[0].s(), a[1].s())) }
 
     @Test fun shortPlaceName() = check("shortPlaceName") { a -> json(shortPlaceName(a[0].s())) }
 

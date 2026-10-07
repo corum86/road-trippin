@@ -283,7 +283,7 @@ export function DesktopAppShell() {
             selectedId={detailOpen ? selectedId : null}
             onOpenDetail={openDetail}
             onAdd={openAdd}
-            headerActions={canUseAi ? <AiSearchTrigger onError={(m) => showToast(m, 'error')} /> : null}
+            addActions={canUseAi ? <AiSearchTrigger onError={(m) => showToast(m, 'error')} /> : null}
           />
         );
       case 'trip':

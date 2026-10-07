@@ -2,9 +2,13 @@ import { ApiError, GoogleGenAI } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import type { Destination } from '../types/models';
 import type { AiFinding, AiPhoto, DestinationAiResult } from '../types/ai';
+import { looksGarbled } from './aiFindings';
 import { fetchImagesForDestination, fetchSight, type SightMatch } from './wikimediaService';
 
 const GEMINI_MODEL = 'gemini-3.5-flash-lite';
+// Research asks this model first, with Google Search grounding, so the sights
+// and their links come from pages it has just read (see researchThings).
+const GROUNDED_MODEL = 'gemini-3.8-flash';
 
 // Free-tier Gemini quota allows only a handful of requests per minute.
 // Researching destinations one at a time with spacing, plus backing off on
@@ -13,6 +17,11 @@ const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const DELAY_BETWEEN_DESTINATIONS_MS = 4000;
 const MAX_RETRIES_ON_RATE_LIMIT = 3;
 const RETRY_BASE_DELAY_MS = 8000;
+
+// Every prompt here asks for JSON. A low temperature keeps the small model
+// from drifting: at its default it wrote corrupted Greek (Latin, Cyrillic,
+// even Chinese letters inside words) in about one answer in five.
+const GENERATION_CONFIG = { temperature: 0.2, responseMimeType: 'application/json' };
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -80,17 +89,20 @@ const LANGUAGE_NAMES: Record<string, string> = {
   el: 'Greek',
 };
 
-// Google Search grounding has its own free-tier quota that 429s even when
-// plain generateContent works fine (verified across several models). So the
-// model names the sights and a well-known link from its own knowledge, and
-// their photos come from the Wikimedia APIs instead (see wikimediaService).
-function promptFor(dest: Destination, lang: string): string {
+// The model names the sights and a link for each; their photos come from the
+// Wikimedia APIs (see wikimediaService). Grounded, it searches the web first
+// and takes the links from what it found; otherwise both come from its own
+// knowledge.
+function promptFor(dest: Destination, lang: string, grounded: boolean): string {
   const language = LANGUAGE_NAMES[lang] ?? 'English';
-  return `You are researching the travel destination "${dest.name}" (near latitude ${dest.location.lat}, longitude ${dest.location.lng}).
+  const url = grounded
+    ? 'the address of one page about it that your search found (official site, tourism board or Wikipedia), or "" if it found none'
+    : 'one relevant, well-known, stable web page about it (official site, tourism board or Wikipedia), or "" if you are not confident one exists';
+  return `You are researching the travel destination "${dest.name}" (near latitude ${dest.location.lat}, longitude ${dest.location.lng}).${grounded ? '\nUse Google Search to check what is worth seeing and doing there now.' : ''}
 Suggest 6 specific sights or things to do there. For each give:
 - "name": its short proper name (the sight, beach, museum, walk, market…), in ${language}
 - "text": one or two sentences on what it is and why it is worth the visit, in ${language}
-- "url": one relevant, well-known, stable web page about it (official site, tourism board or Wikipedia), or "" if you are not confident one exists
+- "url": ${url}
 - "wiki": the title of its English Wikipedia article, or "" if it has none
 Return ONLY a JSON object of the shape:
 {"things": [{"name": "", "text": "", "url": "", "wiki": ""}]}
@@ -99,6 +111,28 @@ No markdown formatting, no code fences, no extra commentary.`;
 
 function stripCodeFences(raw: string): string {
   return raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
+}
+
+/** The JSON in an answer that may have a sentence or code fences around it. */
+function parseJsonAnswer(raw: string): unknown {
+  const text = stripCodeFences(raw);
+  try {
+    return JSON.parse(text);
+  } catch {
+    // a grounded answer can't be forced to be JSON only: take the object inside it
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+    if (start < 0 || end <= start) throw new Error('No JSON in the answer.');
+    return JSON.parse(text.slice(start, end + 1));
+  }
+}
+
+// A grounded answer may cite Google's own redirect addresses, which stop
+// working after a while: not something to save with a place.
+const SEARCH_REDIRECT_URL = /^https?:\/\/vertexaisearch\.cloud\.google\.com\//i;
+
+function isKeepableUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url) && !SEARCH_REDIRECT_URL.test(url);
 }
 
 /** A sight as the model describes it, before its photo is looked up. */
@@ -114,7 +148,7 @@ function parseThings(rawText: string | undefined): RawThing[] {
   const sentence = (text: string): RawThing => ({ name: '', text, url: '', wiki: '' });
   const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
   try {
-    const parsed: unknown = JSON.parse(stripCodeFences(rawText));
+    const parsed = parseJsonAnswer(rawText);
     // older prompt shapes: {"facts": [...]} or a bare array of sentences
     const obj = parsed as { things?: unknown; facts?: unknown } | null;
     const list = Array.isArray(parsed) ? parsed : (obj?.things ?? obj?.facts);
@@ -124,7 +158,7 @@ function parseThings(rawText: string | undefined): RawThing[] {
           if (typeof item === 'string') return sentence(item.trim());
           const o = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
           const url = str(o.url);
-          return { name: str(o.name), text: str(o.text), url: /^https?:\/\//i.test(url) ? url : '', wiki: str(o.wiki) };
+          return { name: str(o.name), text: str(o.text), url: isKeepableUrl(url) ? url : '', wiki: str(o.wiki) };
         })
         .filter((thing) => thing.name || thing.text);
     }
@@ -207,6 +241,7 @@ async function generateWithRetries(contents: string, logContext: string): Promis
       const response = await ai.models.generateContent({
         model: GEMINI_MODEL,
         contents,
+        config: GENERATION_CONFIG,
       });
       return response.text;
     } catch (err) {
@@ -245,6 +280,47 @@ function formatGeminiError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
+// How long research goes without Google Search after a grounded call was
+// refused for quota. A free-tier key has no search quota at all (every
+// grounded call is a 429, whatever the model), so asking again for each
+// place would only spend a request and the time it takes to fail.
+const GROUNDING_PAUSE_MS = 10 * 60_000;
+let groundingPausedUntil = 0;
+
+/**
+ * The sights for a place: from the grounded model when it answers, else from
+ * the plain one. Only the plain call is retried and may throw; a grounded
+ * call that fails for any reason just falls through to it.
+ */
+async function researchThings(dest: Destination, lang: string): Promise<{ things: RawThing[]; grounded: boolean }> {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  if (!apiKey) throw new GeminiApiKeyMissingError();
+  // a sight whose text came out corrupted is left out rather than shown
+  const readable = (rawText: string | undefined) =>
+    parseThings(rawText).filter((thing) => !looksGarbled(`${thing.name} ${thing.text}`, lang));
+
+  if (Date.now() >= groundingPausedUntil) {
+    try {
+      const response = await new GoogleGenAI({ apiKey }).models.generateContent({
+        model: GROUNDED_MODEL,
+        contents: promptFor(dest, lang, true),
+        // JSON mode is left off: the API has refused it together with tools, and
+        // parseJsonAnswer copes with an answer that has more than the JSON in it
+        config: { temperature: GENERATION_CONFIG.temperature, tools: [{ googleSearch: {} }] },
+      });
+      const things = readable(response.text).filter((thing) => thing.name);
+      // prose instead of the JSON asked for reads as no named sights
+      if (things.length > 0) return { things, grounded: true };
+      console.warn(`[gemini] grounded research for "${dest.name}" gave nothing usable; asking without search.`);
+    } catch (err) {
+      console.warn(`[gemini] grounded research for "${dest.name}" failed; asking without search:`, err);
+      if (isRateLimitError(err)) groundingPausedUntil = Date.now() + GROUNDING_PAUSE_MS;
+    }
+  }
+  const rawText = await generateWithRetries(promptFor(dest, lang, false), `research for "${dest.name}"`);
+  return { things: readable(rawText), grounded: false };
+}
+
 export async function fetchAiFindingsForDestination(dest: Destination, lang = 'en'): Promise<DestinationAiResult> {
   const base = {
     destinationId: dest.id,
@@ -252,15 +328,14 @@ export async function fetchAiFindingsForDestination(dest: Destination, lang = 'e
   };
 
   try {
-    // Deliberately NO googleSearch tool here — see comment on promptFor.
     // The photos around the destination load in parallel with the Gemini call.
-    const [rawText, areaPhotos] = await Promise.all([
-      generateWithRetries(promptFor(dest, lang), `research for "${dest.name}"`),
+    const [{ things, grounded }, areaPhotos] = await Promise.all([
+      researchThings(dest, lang),
       fetchImagesForDestination(dest),
     ]);
-    const findings = await toFindings(parseThings(rawText), dest, areaPhotos);
+    const findings = await toFindings(things, dest, areaPhotos);
 
-    return { ...base, status: 'success', findings };
+    return { ...base, status: 'success', grounded, findings };
   } catch (err) {
     if (err instanceof GeminiApiKeyMissingError) throw err;
     return {
@@ -351,11 +426,12 @@ ${JSON.stringify(payload)}`;
 export async function fetchAiFindingsForAllDestinations(
   destinations: Destination[],
   onProgress?: (completed: number, total: number) => void,
+  lang = 'en',
 ): Promise<DestinationAiResult[]> {
   const results: DestinationAiResult[] = [];
   for (let i = 0; i < destinations.length; i++) {
     if (i > 0) await sleep(DELAY_BETWEEN_DESTINATIONS_MS);
-    results.push(await fetchAiFindingsForDestination(destinations[i]));
+    results.push(await fetchAiFindingsForDestination(destinations[i], lang));
     onProgress?.(i + 1, destinations.length);
   }
   return results;
@@ -422,12 +498,14 @@ export async function fetchPlaceSuggestions(req: SuggestionRequest): Promise<Raw
     const lat = Number(o.lat);
     const lng = Number(o.lng);
     if (typeof o.name !== 'string' || !o.name.trim() || !Number.isFinite(lat) || !Number.isFinite(lng)) return [];
+    const blurb = typeof o.blurb === 'string' ? o.blurb.trim() : '';
+    if (looksGarbled(`${o.name} ${blurb}`, req.lang)) return [];
     return [
       {
         name: o.name.trim(),
         lat,
         lng,
-        blurb: typeof o.blurb === 'string' ? o.blurb.trim() : '',
+        blurb,
         tags: strings(o.tags),
         groups: strings(o.groups),
         budget: Number(o.budget) || 2,

@@ -462,6 +462,12 @@ export function ReviewStep({ place, index, total, result, picks, thumbnail, onPi
           <span className="vm-meta">{driveLine(place, t)}</span>
         </span>
       </div>
+      {result?.grounded && (
+        <span className="vm-grounded-chip">
+          <Icon name="travel_explore" size={16} />
+          {t('ai.grounded')}
+        </span>
+      )}
       {findings.length === 0 ? (
         <div className="vm-wizard-empty">{t('wizard.nothingFound')}</div>
       ) : (

@@ -3,6 +3,7 @@ import { useMapDataStore } from '../../store/mapDataStore';
 import { domainOf, withFindings } from '../../services/aiFindings';
 import type { AiFinding, DestinationAiResult } from '../../types/ai';
 import { useI18n } from '../../i18n/context';
+import { Icon } from '../ui/Icon';
 
 interface AiResearchStepperProps {
   results: DestinationAiResult[];
@@ -50,6 +51,12 @@ export function AiResearchStepper({ results, onClose }: AiResearchStepperProps) 
               {t('stepper.counter', { current: stepIndex + 1, total: count })}
             </span>
             <h2>{step.destinationName}</h2>
+            {step.grounded && (
+              <span className="vm-grounded-chip">
+                <Icon name="travel_explore" size={16} />
+                {t('ai.grounded')}
+              </span>
+            )}
           </div>
           <button type="button" className="vm-stepper-close" onClick={onClose} aria-label={t('detail.close')}>
             ✕
