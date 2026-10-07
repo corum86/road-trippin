@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n/context';
 import { addDays, diffDays, formatDate, todayIso } from '../../services/dates';
 import { fetchAiFindingsForDestination, GeminiApiKeyMissingError } from '../../services/geminiService';
 import { fetchImagesForDestination } from '../../services/wikimediaService';
+import { countFindings } from '../../services/aiFindings';
 import { planDays } from '../../services/tripPlan';
 import {
   isReachable,
@@ -24,16 +25,15 @@ import {
   ResearchStep,
   ReviewStep,
   StyleStep,
-  type ReviewTab,
 } from './WizardSteps';
 import {
   SEGMENTS,
   STEPS,
   defaultPicks,
+  keptFindings,
   segmentOf,
   suggestionAsDestination,
   toPlannedPlace,
-  type FindingPicks,
   type ResearchState,
   type WizardAnswers,
   type WizardStep,
@@ -68,13 +68,13 @@ const RESEARCH_SPACING_MS = 4000;
 // thumbnails for the suggestion cards, fetched a few at a time
 const THUMBNAIL_BATCH = 4;
 
-const EMPTY_PICKS: FindingPicks = { photos: [], facts: [], links: [] };
+const NO_PICKS: boolean[] = [];
 
 /**
  * Guided trip planning: dates, drive limit, group, style and extras, then
  * suggested places (Gemini, ranked on the device), research of the picked
- * places (Gemini facts and links, Wikimedia photos), a review of what to
- * keep, and a day-by-day plan by drive time.
+ * places (things to do from Gemini, each with a Wikimedia photo and a link),
+ * a review of what to keep, and a day-by-day plan by drive time.
  */
 export function TripWizard({ variant, data, home, onClose, onFinish, onChangeHome, backHandlerRef }: TripWizardProps) {
   const { t, lang } = useI18n();
@@ -97,9 +97,9 @@ export function TripWizard({ variant, data, home, onClose, onFinish, onChangeHom
   const [catalog, setCatalog] = useState<Catalog>({ status: 'loading' });
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const [research, setResearch] = useState<Record<string, ResearchState>>({});
-  const [picks, setPicks] = useState<Record<string, FindingPicks>>({});
+  // per place: which of its findings are ticked to be saved
+  const [picks, setPicks] = useState<Record<string, boolean[]>>({});
   const [reviewIndex, setReviewIndex] = useState(0);
-  const [reviewTab, setReviewTab] = useState<ReviewTab>('photos');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   // async results must not land after the wizard closed
@@ -244,17 +244,7 @@ export function TripWizard({ variant, data, home, onClose, onFinish, onChangeHom
     [step, dayCount, selected, items, home.location],
   );
 
-  const found = selectedPlaces.reduce(
-    (sum, s) => {
-      const p = picks[s.id] ?? EMPTY_PICKS;
-      return {
-        photos: sum.photos + p.photos.filter(Boolean).length,
-        facts: sum.facts + p.facts.filter(Boolean).length,
-        links: sum.links + p.links.filter(Boolean).length,
-      };
-    },
-    { photos: 0, facts: 0, links: 0 },
-  );
+  const found = countFindings(selectedPlaces.flatMap((s) => keptFindings(research[s.id], picks[s.id])));
 
   // ---- navigation
   useEffect(() => {
@@ -263,10 +253,7 @@ export function TripWizard({ variant, data, home, onClose, onFinish, onChangeHom
 
   function goTo(next: WizardStep) {
     if (next === 'research') queueResearch();
-    if (next === 'review') {
-      setReviewIndex(0);
-      setReviewTab('photos');
-    }
+    if (next === 'review') setReviewIndex(0);
     setStep(next);
   }
 
@@ -274,7 +261,6 @@ export function TripWizard({ variant, data, home, onClose, onFinish, onChangeHom
     if (step === 'dates') return false;
     if (step === 'review' && reviewIndex > 0) {
       setReviewIndex(reviewIndex - 1);
-      setReviewTab('photos');
     } else if (step === 'review') {
       // research is automatic; going back skips straight to the picks
       setStep('places');
@@ -332,12 +318,8 @@ export function TripWizard({ variant, data, home, onClose, onFinish, onChangeHom
   function next() {
     if (!valid[step]) return;
     if (step === 'review') {
-      if (!lastReviewPlace) {
-        setReviewIndex(reviewIndex + 1);
-        setReviewTab('photos');
-      } else {
-        goTo('plan');
-      }
+      if (!lastReviewPlace) setReviewIndex(reviewIndex + 1);
+      else goTo('plan');
       return;
     }
     if (step === 'plan') {
@@ -528,10 +510,8 @@ export function TripWizard({ variant, data, home, onClose, onFinish, onChangeHom
               index={Math.min(reviewIndex, selectedPlaces.length - 1)}
               total={selectedPlaces.length}
               result={reviewResult}
-              picks={picks[reviewPlace.id] ?? EMPTY_PICKS}
-              tab={reviewTab}
+              picks={picks[reviewPlace.id] ?? NO_PICKS}
               thumbnail={thumbnails[reviewPlace.id]}
-              onTab={setReviewTab}
               onPicks={(next) => setPicks((current) => ({ ...current, [reviewPlace.id]: next }))}
             />
           )}

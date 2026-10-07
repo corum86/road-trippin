@@ -77,6 +77,7 @@ class SourceChecksTest {
         "angle", "attribution", "nav", "spinner",
         // translation parameters
         "a", "b", "g", "home", "i", "k", "km", "l", "m", "n", "name", "q", "r", "t", "v", "caption",
+        "completed", "current", "total",
         // keys of remembered state
         "all", "pick",
         // words quoted in comments

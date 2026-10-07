@@ -51,7 +51,8 @@ cd android
 - `ParityTest` — the Kotlin logic against the web app's, as above.
 - `SourceChecksTest` — every string key and icon name the UI uses exists.
 - `AppScreenshotTest`, `MapScreenshotTest` — render the real screens with Robolectric and write PNGs to `app/build/outputs/roborazzi/` to look at. They are pictures to review, not comparisons against golden images.
-- `FlowTest` — the trip planner from dates to a saved trip, pick-on-map town names and the image export, against canned Gemini/OSRM/Wikimedia/Photon answers.
+- `FlowTest` — the trip planner from dates to a saved trip, the AI research of every place from Places, pick-on-map town names and the image export, against canned Gemini/OSRM/Wikimedia/Photon answers.
+- `GroundedResearchTest`, `ResearchParsingTest` — research asks the search-grounded model first and falls back to the plain one; reading the model's answer in the shapes it comes in.
 - `PlaceSearchTest` — searching a place by name in the form and taking its name and coordinates.
 - `CloudSyncTest` — when this device's data goes up, when another device's comes down, and what happens offline.
 

@@ -66,7 +66,12 @@ import io.github.corum86.vacationmap.ui.components.Icon
 import io.github.corum86.vacationmap.ui.components.ToastController
 import io.github.corum86.vacationmap.ui.components.ToastView
 import io.github.corum86.vacationmap.ui.components.VmText
+import io.github.corum86.vacationmap.net.DELAY_BETWEEN_DESTINATIONS_MS
+import io.github.corum86.vacationmap.net.DestinationAiResult
+import io.github.corum86.vacationmap.net.GeminiApiKeyMissingException
 import io.github.corum86.vacationmap.ui.screens.AddToDaySheet
+import io.github.corum86.vacationmap.ui.screens.AiResearchScreen
+import io.github.corum86.vacationmap.ui.screens.AiSearchButton
 import io.github.corum86.vacationmap.ui.screens.ConfirmRequest
 import io.github.corum86.vacationmap.ui.screens.DestinationDetailScreen
 import io.github.corum86.vacationmap.ui.screens.LocationFormKind
@@ -74,6 +79,7 @@ import io.github.corum86.vacationmap.ui.screens.LocationFormScreen
 import io.github.corum86.vacationmap.ui.screens.MapScreen
 import io.github.corum86.vacationmap.ui.screens.PickOnMapScreen
 import io.github.corum86.vacationmap.ui.screens.PlacesScreen
+import io.github.corum86.vacationmap.ui.screens.ResearchProgress
 import io.github.corum86.vacationmap.ui.screens.ReplanSheet
 import io.github.corum86.vacationmap.ui.screens.SettingsScreen
 import io.github.corum86.vacationmap.ui.screens.SwapSheet
@@ -83,6 +89,7 @@ import io.github.corum86.vacationmap.ui.theme.VacationMapTheme
 import io.github.corum86.vacationmap.ui.theme.VmColors
 import io.github.corum86.vacationmap.ui.wizard.TripWizard
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class Tab(val icon: String, val labelKey: String) {
@@ -112,6 +119,9 @@ sealed interface Layer {
     data class ConfirmDelete(val id: String) : Layer
 
     data object Planner : Layer
+
+    /** what the AI research of every destination found, to go through */
+    class AiResearch(val results: List<DestinationAiResult>) : Layer
 
     class Confirm(val request: ConfirmRequest) : Layer {
         override val isSheet get() = true
@@ -175,6 +185,9 @@ fun AppShell() {
     var contentSize by remember { mutableStateOf(IntSize.Zero) }
     val toast = remember { ToastController() }
     val stack = remember { mutableStateListOf<Layer>() }
+    // a research of every destination in flight; it carries on across tabs
+    var researchProgress by remember { mutableStateOf<ResearchProgress?>(null) }
+    val lang by services.language.lang.collectAsState()
 
     fun push(layer: Layer) {
         stack.add(layer)
@@ -267,6 +280,33 @@ fun AppShell() {
             return
         }
         push(Layer.Planner)
+    }
+
+    /** Research every destination with AI, one after the other, then open the review of what was found. */
+    fun researchAll() {
+        val destinations = data.destinations
+        if (researchProgress != null || destinations.isEmpty()) return
+        researchProgress = ResearchProgress(0, destinations.size)
+        scope.launch {
+            try {
+                val results = ArrayList<DestinationAiResult>()
+                for ((i, dest) in destinations.withIndex()) {
+                    // the free Gemini tier allows only a few requests a minute
+                    if (i > 0) delay(DELAY_BETWEEN_DESTINATIONS_MS)
+                    results += services.gemini.fetchAiFindingsForDestination(dest, lang.code)
+                    researchProgress = ResearchProgress(i + 1, destinations.size)
+                }
+                push(Layer.AiResearch(results))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: GeminiApiKeyMissingException) {
+                toast.show(t("ai.unavailable"), isError = true)
+            } catch (e: Exception) {
+                toast.show(e.message ?: t("ai.failed"), isError = true)
+            } finally {
+                researchProgress = null
+            }
+        }
     }
 
     @Composable
@@ -369,6 +409,8 @@ fun AppShell() {
                 )
             }
 
+            is Layer.AiResearch -> AiResearchScreen(layer.results, onClose = { back() })
+
             is Layer.Confirm -> ConfirmDialog(
                 title = layer.request.title,
                 body = layer.request.body,
@@ -407,7 +449,12 @@ fun AppShell() {
             Box(Modifier.weight(1f).fillMaxWidth().onSizeChanged { contentSize = it }) {
                 when (tab) {
                     Tab.Map -> MapScreen(data, displayMode, { displayMode = it }, ::openDetail, ::openAdd)
-                    Tab.Places -> PlacesScreen(data, ::openDetail, ::openAdd)
+                    Tab.Places -> PlacesScreen(data, ::openDetail, ::openAdd) {
+                        // without a key there is nothing to research with
+                        if (services.gemini.isConfigured) {
+                            AiSearchButton(researchProgress, enabled = data.destinations.isNotEmpty(), onClick = ::researchAll)
+                        }
+                    }
                     Tab.Trip -> TripScreen(
                         data = data,
                         onOpenDetail = ::openDetail,

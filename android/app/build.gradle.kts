@@ -20,12 +20,23 @@ fun readProperties(path: String): Properties =
 val geminiApiKey: String =
     readProperties("local.properties").getProperty("gemini.apiKey")
         ?: System.getenv("GEMINI_API_KEY")
-        ?: readProperties("../.env").getProperty("VITE_GEMINI_API_KEY")
+        ?: readProperties("../.env").getProperty("VITE_GEMINI_API_KEY")?.let(::unquoted)
         ?: ""
 
 // Where /api/data lives: the deployed web app (see api/data.ts in the repo root).
 val cloudApiBaseUrl: String =
     (findProperty("vacationmap.apiBaseUrl") as String?) ?: "https://road-trippin-six.vercel.app"
+
+/** A .env value as dotenv reads it: surrounding quotes are not part of the value. */
+fun unquoted(value: String): String {
+    val trimmed = value.trim()
+    val quote = trimmed.firstOrNull()
+    return if (trimmed.length >= 2 && (quote == '"' || quote == '\'') && trimmed.last() == quote) {
+        trimmed.substring(1, trimmed.length - 1)
+    } else {
+        trimmed
+    }
+}
 
 fun quoted(value: String) = "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 

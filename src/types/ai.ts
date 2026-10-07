@@ -1,37 +1,32 @@
-export type AiFindingKind = 'image' | 'text' | 'link';
-
-export interface AiImageFinding {
-  id: string;
-  kind: 'image';
+export interface AiPhoto {
   imageUrl: string;
+  /** the page the photo comes from */
   sourceUrl: string;
   sourceTitle: string;
-  added: boolean;
 }
 
-export interface AiTextFinding {
-  id: string;
-  kind: 'text';
-  fact: string;
-  added: boolean;
-}
-
-export interface AiLinkFinding {
-  id: string;
-  kind: 'link';
+export interface AiLink {
   label: string;
   url: string;
-  added: boolean;
 }
 
-export type AiFinding = AiImageFinding | AiTextFinding | AiLinkFinding;
+/** One researched sight or thing to do: shown as a card with its photo, text and link. */
+export interface AiFinding {
+  id: string;
+  /** the sight or activity; empty when the model only returned a sentence */
+  name: string;
+  text: string;
+  photo?: AiPhoto;
+  link?: AiLink;
+  added: boolean;
+}
 
 export interface DestinationAiResult {
   destinationId: string;
   destinationName: string;
   status: 'success' | 'error';
   error?: string;
-  images: AiImageFinding[];
-  texts: AiTextFinding[];
-  links: AiLinkFinding[];
+  /** the sights were checked with Google Search, not only recalled by the model */
+  grounded?: boolean;
+  findings: AiFinding[];
 }

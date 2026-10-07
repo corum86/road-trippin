@@ -22,6 +22,9 @@ import { unscheduledDestinations } from '../../services/tripPlan';
 import { SwapSheet } from '../screens/SwapSheet';
 import { ReplanSheet } from '../screens/ReplanSheet';
 import { TripWizard } from '../wizard/TripWizard';
+import { AiSearchTrigger } from '../controls/AiSearchTrigger';
+import { AiResearchStepper } from '../panels/AiResearchStepper';
+import type { DestinationAiResult } from '../../types/ai';
 import { ConfirmDeleteDialog } from '../ui/ConfirmDeleteDialog';
 import { ConfirmDialog } from '../ui/ConfirmDialog';
 import { OffscreenMapExport } from './OffscreenMapExport';
@@ -44,7 +47,8 @@ type Layer =
   | { kind: 'add-to-day'; day: number }
   | { kind: 'swap'; day: number; index: number }
   | { kind: 'replan' }
-  | { kind: 'planner' };
+  | { kind: 'planner' }
+  | { kind: 'ai-research'; results: DestinationAiResult[] };
 
 // sheets (and the dialogs a tab opens itself) sit over the current tab, bottom
 // nav included; everything else is a full-screen layer that replaces the nav
@@ -56,6 +60,8 @@ const SHEET_LAYERS: ReadonlyArray<Layer['kind']> = [
   'confirm-clear-trip',
   'confirm-reset',
 ];
+
+const canUseAi = !!import.meta.env.VITE_GEMINI_API_KEY;
 
 const TABS: Array<{ id: Tab; icon: string; labelKey: TranslationKey }> = [
   { id: 'map', icon: 'map', labelKey: 'tabs.map' },
@@ -277,6 +283,8 @@ export function MobileAppShell() {
             }}
           />
         );
+      case 'ai-research':
+        return <AiResearchStepper results={layer.results} onClose={() => back()} />;
       case 'confirm-delete': {
         const destination = data.destinations.find((d) => d.id === layer.id);
         if (!destination) return null;
@@ -342,7 +350,22 @@ export function MobileAppShell() {
             onAdd={openAdd}
           />
         )}
-        {tab === 'places' && <PlacesScreen data={data} variant="mobile" onOpenDetail={openDetail} onAdd={openAdd} />}
+        {tab === 'places' && (
+          <PlacesScreen
+            data={data}
+            variant="mobile"
+            onOpenDetail={openDetail}
+            onAdd={openAdd}
+            addActions={
+              canUseAi ? (
+                <AiSearchTrigger
+                  onError={(m) => showToast(m, 'error')}
+                  onResults={(results) => push({ kind: 'ai-research', results })}
+                />
+              ) : null
+            }
+          />
+        )}
         {tab === 'trip' && (
           <TripScreen
             data={data}

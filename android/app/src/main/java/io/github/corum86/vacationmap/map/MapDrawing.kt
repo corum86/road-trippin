@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import io.github.corum86.vacationmap.logic.Point
 import io.github.corum86.vacationmap.logic.RouteDisplayMode
+import io.github.corum86.vacationmap.logic.TrimmedCurve
 import io.github.corum86.vacationmap.logic.bezierControlPoint
 import io.github.corum86.vacationmap.logic.hashString
 import io.github.corum86.vacationmap.logic.shortPlaceName
@@ -97,10 +98,19 @@ private const val LABEL_FLIP_THRESHOLD = 0.55f
 // geometric scaling overwhelms the fixed-size pins within a couple of steps),
 // clamped so arrows stay visible far out and reasonable close in.
 private const val REF_ZOOM = 7.0
-private const val MIN_STROKE = 1.2f
-private const val MAX_STROKE = 14f
-private const val ARROW_WIDTH = 2.5f
-private const val ARROW_WIDTH_SELECTED = 3.5f
+private const val MIN_STROKE = 0.8f
+private const val MAX_STROKE = 6f
+private const val ARROW_WIDTH = 1.2f
+private const val ARROW_WIDTH_SELECTED = 1.7f
+
+// arrowhead size in stroke widths
+private const val ARROW_HEAD = 4.5f
+private const val ARROW_HEAD_SELECTED = 5f
+
+// The arrow reads as an arc lifted off the map; its shadow lies on the ground
+// below it: the same trip drawn almost straight, with this share of the bow.
+private const val SHADOW_BOW_SHARE = 0.2
+private const val SHADOW_OPACITY = 0.16f
 
 // stop the arrow this far short of the destination point, so the arrowhead
 // sits just before the pin instead of underneath it
@@ -232,7 +242,20 @@ private fun DrawScope.drawRoutes(state: MapState, scene: MapScene, home: MainLoc
     }
 }
 
-private class Arrow(val path: Path, val head: Path, val strokeWidth: Float, val selected: Boolean, val bounds: Rect)
+private fun curveFrom(origin: Point, curve: TrimmedCurve) = Path().apply {
+    moveTo(origin.x.toFloat(), origin.y.toFloat())
+    quadraticTo(curve.control.x.toFloat(), curve.control.y.toFloat(), curve.end.x.toFloat(), curve.end.y.toFloat())
+}
+
+private class Arrow(
+    val path: Path,
+    val head: Path,
+    val headUnit: Float,
+    val shadow: Path,
+    val strokeWidth: Float,
+    val selected: Boolean,
+    val bounds: Rect,
+)
 
 private fun DrawScope.drawArrows(state: MapState, scene: MapScene, home: MainLocation) {
     val u = density
@@ -250,20 +273,16 @@ private fun DrawScope.drawArrows(state: MapState, scene: MapScene, home: MainLoc
         val control = bezierControlPoint(origin, end, bow)
         // shape the bow from the full curve, then cut it short of the pin
         val trimmed = trimQuadraticBezier(origin, control, end, ARROW_TIP_GAP * u)
-        val path = Path().apply {
-            moveTo(origin.x.toFloat(), origin.y.toFloat())
-            quadraticTo(
-                trimmed.control.x.toFloat(),
-                trimmed.control.y.toFloat(),
-                trimmed.end.x.toFloat(),
-                trimmed.end.y.toFloat(),
-            )
-        }
+        val path = curveFrom(origin, trimmed)
+        val shadow = curveFrom(
+            origin,
+            trimQuadraticBezier(origin, bezierControlPoint(origin, end, bow * SHADOW_BOW_SHARE), end, ARROW_TIP_GAP * u),
+        )
         val strokeWidth = ((if (selected) ARROW_WIDTH_SELECTED else ARROW_WIDTH) * zoomScale).coerceIn(MIN_STROKE, MAX_STROKE) * u
 
-        // the arrowhead: a triangle 3.5 (selected 4) stroke widths across,
+        // the arrowhead: a triangle 4.5 (selected 5) stroke widths across,
         // pointing along the curve's final direction
-        val unit = (if (selected) 4f else 3.5f) / 10f * strokeWidth
+        val unit = (if (selected) ARROW_HEAD_SELECTED else ARROW_HEAD) / 10f * strokeWidth
         val angle = atan2(trimmed.end.y - trimmed.control.y, trimmed.end.x - trimmed.control.x)
         val cosA = cos(angle).toFloat()
         val sinA = sin(angle).toFloat()
@@ -280,31 +299,27 @@ private fun DrawScope.drawArrows(state: MapState, scene: MapScene, home: MainLoc
             lineTo(c.x, c.y)
             close()
         }
-        Arrow(path, head, strokeWidth, selected, path.getBounds().inflate(strokeWidth * 3 + 8 * u))
+        Arrow(path, head, unit, shadow, strokeWidth, selected, path.getBounds().inflate(strokeWidth * 3 + 8 * u))
     }
-    // selected arrow last so its border and shadow draw over the others
+    // selected arrow last so it draws over the others
     val ordered = arrows.sortedBy { it.selected }
 
     // with a selection, the other arrows recede so the highlighted one reads first
     fun alphaOf(arrow: Arrow) = if (arrow.selected) 1f else if (scene.selectedId != null) 0.55f else 0.85f
 
-    // one soft shadow under all of them
-    val shadowDy = min(1.5f * zoomScale, 4f) * u
-    val shadowBlur = BlurMaskFilter(blurRadiusForSigma(min(1.5f * zoomScale, 5f) * u), BlurMaskFilter.Blur.NORMAL)
+    // the faint ground shadows, under all of the arrows
+    val shadowBlur = BlurMaskFilter(blurRadiusForSigma(min(0.5f * zoomScale, 1.5f) * u), BlurMaskFilter.Blur.NORMAL)
     drawIntoCanvas { canvas ->
         for (arrow in ordered) {
             val paint = AndroidPaint().apply {
                 isAntiAlias = true
                 style = AndroidPaint.Style.STROKE
                 strokeCap = AndroidPaint.Cap.ROUND
-                strokeWidth = arrow.strokeWidth + 2 * u
-                color = Color.Black.copy(alpha = 0.35f * alphaOf(arrow)).toArgb()
+                strokeWidth = arrow.strokeWidth + u
+                color = Color.Black.copy(alpha = SHADOW_OPACITY * alphaOf(arrow)).toArgb()
                 maskFilter = shadowBlur
             }
-            canvas.nativeCanvas.save()
-            canvas.nativeCanvas.translate(0f, shadowDy)
-            canvas.nativeCanvas.drawPath(arrow.path.asAndroidPath(), paint)
-            canvas.nativeCanvas.restore()
+            canvas.nativeCanvas.drawPath(arrow.shadow.asAndroidPath(), paint)
         }
     }
 
@@ -315,11 +330,11 @@ private fun DrawScope.drawArrows(state: MapState, scene: MapScene, home: MainLoc
         drawIntoCanvas { canvas ->
             // a layer, so casing, stroke and head fade as one shape
             if (alpha < 1f) canvas.saveLayer(arrow.bounds, Paint().apply { this.alpha = alpha })
-            // casing: 1dp border on each side of the coloured stroke
-            drawPath(arrow.path, casing, style = Stroke(arrow.strokeWidth + 2 * u, cap = StrokeCap.Round))
+            // casing: half a dp of border on each side of the coloured stroke
+            drawPath(arrow.path, casing, style = Stroke(arrow.strokeWidth + u, cap = StrokeCap.Round))
             drawPath(arrow.path, color, style = Stroke(arrow.strokeWidth, cap = StrokeCap.Round))
             drawPath(arrow.head, color)
-            drawPath(arrow.head, casing, style = Stroke(0.6f * arrow.strokeWidth * (if (arrow.selected) 0.4f else 0.35f)))
+            drawPath(arrow.head, casing, style = Stroke(0.6f * arrow.headUnit))
             if (alpha < 1f) canvas.restore()
         }
     }

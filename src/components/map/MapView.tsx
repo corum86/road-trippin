@@ -32,8 +32,8 @@ interface MapViewProps {
 
 // desktop draws slightly heavier arrows to match its larger pins
 const ARROW_WIDTHS: Record<MapDensity, [number, number]> = {
-  compact: [2.5, 3.5],
-  comfortable: [3, 4],
+  compact: [1.2, 1.7],
+  comfortable: [1.4, 2],
 };
 
 // where the map opens with no home base and no place to centre on

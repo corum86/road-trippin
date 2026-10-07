@@ -14,6 +14,7 @@ import io.github.corum86.vacationmap.model.RouteInfo
 import io.github.corum86.vacationmap.model.RouteSource
 import io.github.corum86.vacationmap.model.TravelGroup
 import io.github.corum86.vacationmap.model.TravelStyle
+import io.github.corum86.vacationmap.net.AiFinding
 import io.github.corum86.vacationmap.net.DestinationAiResult
 import java.net.URI
 import kotlin.math.roundToInt
@@ -107,27 +108,47 @@ sealed interface ResearchState {
     data class Error(val message: String) : ResearchState
 }
 
-/** Which findings are ticked to be saved, per tab. */
-data class FindingPicks(
-    val photos: List<Boolean> = emptyList(),
-    val facts: List<Boolean> = emptyList(),
-    val links: List<Boolean> = emptyList(),
-)
+/** Every finding starts ticked: the review is for unticking what isn't wanted. */
+internal fun defaultPicks(result: DestinationAiResult): List<Boolean> = List(result.findings.size) { true }
 
-/** Ticked by default: the first 3 photos, 4 facts and 2 links. */
-internal fun defaultPicks(result: DestinationAiResult): FindingPicks = FindingPicks(
-    photos = List(result.images.size) { it < 3 },
-    facts = List(result.texts.size) { it < 4 },
-    links = List(result.links.size) { it < 2 },
-)
+/** The findings of a researched place that are ticked to be saved. */
+internal fun keptFindings(research: ResearchState?, picks: List<Boolean>?): List<AiFinding> =
+    (research as? ResearchState.Done)?.result?.findings.orEmpty().filterIndexed { i, _ -> picks?.getOrNull(i) == true }
+
+/** A finding as one line of a destination's things to do. */
+internal fun attractionOf(finding: AiFinding): String =
+    if (finding.name.isNotEmpty() && finding.text.isNotEmpty()) "${finding.name}: ${finding.text}" else finding.name.ifEmpty { finding.text }
+
+/**
+ * The destination with a finding saved into it: its text, photo and link,
+ * skipping what the destination already has.
+ */
+internal fun Destination.withFinding(finding: AiFinding): Destination {
+    val line = attractionOf(finding)
+    val photo = finding.photo?.takeIf { found -> photos.none { it.url == found.imageUrl } }
+    val link = finding.link?.takeIf { found -> links.none { it.url == found.url } }
+    return copy(
+        attractions = if (line.isEmpty() || line in attractions) attractions else attractions + line,
+        photos = if (photo == null) photos else photos + Photo(newId(), photo.imageUrl, photo.sourceTitle),
+        links = if (link == null) links else links + LinkItem(newId(), link.label, link.url),
+    )
+}
+
+/** How many photos, things to do and links the findings come to. */
+internal class FoundTotals(val photos: Int, val facts: Int, val links: Int)
+
+internal fun countFindings(findings: List<AiFinding>) =
+    FoundTotals(photos = findings.count { it.photo != null }, facts = findings.size, links = findings.count { it.link != null })
 
 /** The research service works on destinations; present a suggestion as one. */
 internal fun suggestionAsDestination(s: PlaceSuggestion): Destination = Destination(id = s.id, name = s.name, location = s.location)
 
-/** What gets saved to Places for a picked suggestion: its ticked findings. */
-internal fun toPlannedPlace(s: PlaceSuggestion, research: ResearchState?, picks: FindingPicks?): PlannedPlace {
-    val result = (research as? ResearchState.Done)?.result
-    fun <T> ticked(items: List<T>, flags: List<Boolean>?) = items.filterIndexed { i, _ -> flags?.getOrNull(i) == true }
+/**
+ * What gets saved to Places for a picked suggestion: each ticked finding
+ * adds its text, photo and link (a photo or link two findings share, once).
+ */
+internal fun toPlannedPlace(s: PlaceSuggestion, research: ResearchState?, picks: List<Boolean>?): PlannedPlace {
+    val kept = keptFindings(research, picks)
     return PlannedPlace(
         id = s.id,
         name = s.name,
@@ -139,13 +160,13 @@ internal fun toPlannedPlace(s: PlaceSuggestion, research: ResearchState?, picks:
             source = if (s.estimated) RouteSource.StraightLineEstimate else RouteSource.Osrm,
             fetchedAt = nowIsoInstant(),
         ),
-        photos = result?.let { r -> ticked(r.images, picks?.photos).map { Photo(newId(), it.imageUrl, it.sourceTitle) } } ?: emptyList(),
-        attractions = result?.let { r -> ticked(r.texts, picks?.facts).map { it.fact } } ?: emptyList(),
-        links = result?.let { r -> ticked(r.links, picks?.links).map { LinkItem(newId(), it.label, it.url) } } ?: emptyList(),
+        photos = kept.mapNotNull { it.photo }.distinctBy { it.imageUrl }.map { Photo(newId(), it.imageUrl, it.sourceTitle) },
+        attractions = kept.map(::attractionOf).filter { it.isNotEmpty() }.distinct(),
+        links = kept.mapNotNull { it.link }.distinctBy { it.url }.map { LinkItem(newId(), it.label, it.url) },
     )
 }
 
-/** "en.wikipedia.org" from a link URL, for the review list. */
+/** "en.wikipedia.org" from a link URL: what a card shows for its link. */
 internal fun domainOf(url: String): String = try {
     URI(url).host?.removePrefix("www.") ?: url
 } catch (_: Exception) {

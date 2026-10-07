@@ -12,8 +12,8 @@
 	],
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
-	// "features": {},
-
+	"features": { "./claude-code-stay-awake": {} },
+	
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	"forwardPorts": [5173],
 	"portsAttributes": {

@@ -23,11 +23,11 @@ interface PlacesScreenProps {
   onAdd: () => void;
   /** highlighted card (desktop, where Detail floats beside the list) */
   selectedId?: string | null;
-  /** extra header buttons (desktop), e.g. AI search */
-  headerActions?: React.ReactNode;
+  /** extra buttons shown beside Add, e.g. AI search */
+  addActions?: React.ReactNode;
 }
 
-export function PlacesScreen({ data, variant, onOpenDetail, onAdd, selectedId, headerActions }: PlacesScreenProps) {
+export function PlacesScreen({ data, variant, onOpenDetail, onAdd, selectedId, addActions }: PlacesScreenProps) {
   const { t, lang } = useI18n();
   const toggleFavorite = useMapDataStore((s) => s.toggleFavorite);
   const [filter, setFilter] = useState<PlacesFilter>('all');
@@ -47,7 +47,7 @@ export function PlacesScreen({ data, variant, onOpenDetail, onAdd, selectedId, h
               {eyebrow && <div className="vm-desktop-eyebrow">{eyebrow}</div>}
               <h1 className="vm-desktop-panel-title">{t('tabs.places')}</h1>
             </div>
-            {headerActions}
+            {addActions}
             <button type="button" className="vm-desktop-add-btn" onClick={onAdd}>
               <Icon name="add" size={20} />
               {t('places.add')}
@@ -118,10 +118,13 @@ export function PlacesScreen({ data, variant, onOpenDetail, onAdd, selectedId, h
       </div>
 
       {!isDesktop && (
-        <button type="button" className="vm-fab" onClick={onAdd}>
-          <Icon name="add" size={24} />
-          {t('form.addDestination')}
-        </button>
+        <div className="vm-fab-bar">
+          {addActions}
+          <button type="button" className="vm-fab" onClick={onAdd}>
+            <Icon name="add" size={24} />
+            {t('form.addDestination')}
+          </button>
+        </div>
       )}
     </div>
   );

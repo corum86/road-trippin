@@ -23,8 +23,16 @@ const ARROW_PANE_Z_INDEX = '625';
 // geometric scaling overwhelms the fixed-size pins within a couple of steps),
 // clamped so arrows stay visible far out and reasonable close in.
 const REF_ZOOM = 7;
-const MIN_STROKE = 1.2;
-const MAX_STROKE = 14;
+const MIN_STROKE = 0.8;
+const MAX_STROKE = 6;
+
+// arrowhead size in stroke widths for [other, selected] arrows
+const HEAD_SIZES: [number, number] = [4.5, 5];
+
+// The arrow reads as an arc lifted off the map; its shadow lies on the ground
+// below it: the same trip drawn almost straight, with this share of the bow.
+const SHADOW_BOW_SHARE = 0.2;
+const SHADOW_OPACITY = 0.16;
 
 // stop the arrow this many screen pixels short of the destination point, so
 // the arrowhead sits just before the pin instead of underneath it
@@ -38,7 +46,7 @@ export function CurvedArrowsOverlay({
   mainLocation,
   destinations,
   selectedDestinationId,
-  baseStrokeWidths = [2.5, 3.5],
+  baseStrokeWidths = [1.2, 1.7],
 }: CurvedArrowsOverlayProps) {
   const map = useMap();
   const svgRef = useRef<SVGSVGElement>(null);
@@ -105,13 +113,20 @@ export function CurvedArrowsOverlay({
       const control = bezierControlPoint(origin, end, bow);
       // shape the bow from the full curve, then cut it short of the pin
       const trimmed = trimQuadraticBezier(origin, control, end, ARROW_TIP_GAP_PX);
+      const shadow = trimQuadraticBezier(
+        origin,
+        bezierControlPoint(origin, end, bow * SHADOW_BOW_SHARE),
+        end,
+        ARROW_TIP_GAP_PX,
+      );
       return {
         id: dest.id,
         d: `M ${origin.x} ${origin.y} Q ${trimmed.control.x} ${trimmed.control.y} ${trimmed.end.x} ${trimmed.end.y}`,
+        shadowD: `M ${origin.x} ${origin.y} Q ${shadow.control.x} ${shadow.control.y} ${shadow.end.x} ${shadow.end.y}`,
         selected: dest.id === selectedDestinationId,
       };
     });
-    // selected arrow last so its border/shadow draws over the others
+    // selected arrow last so it draws over the others
     return [...all.filter((p) => !p.selected), ...all.filter((p) => p.selected)];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, mainLocation, destinations, selectedDestinationId, recalcTick]);
@@ -127,8 +142,11 @@ export function CurvedArrowsOverlay({
 
   // fresh on every recalcTick-triggered render
   const zoomScale = zoomScaleFor(map.getZoom());
-  const shadowOffset = Math.min(1.5 * zoomScale, 4);
-  const shadowBlur = Math.min(1.5 * zoomScale, 5);
+  const shadowBlur = Math.min(0.5 * zoomScale, 1.5);
+  const strokeWidthOf = (selected: boolean) =>
+    Math.min(Math.max(baseStrokeWidths[selected ? 1 : 0] * zoomScale, MIN_STROKE), MAX_STROKE);
+  // with a selection, the other arrows recede so the highlighted one reads first
+  const opacityOf = (selected: boolean) => (selected ? 1 : selectedDestinationId ? 0.55 : 0.85);
 
   // get-or-create keeps this idempotent across re-renders and StrictMode
   let arrowPane = map.getPane(ARROW_PANE);
@@ -153,22 +171,24 @@ export function CurvedArrowsOverlay({
       }}
     >
       <defs>
-        <filter id="vm-arrow-shadow" x="-20%" y="-20%" width="140%" height="140%">
-          <feDropShadow
-            dx="0"
-            dy={shadowOffset}
-            stdDeviation={shadowBlur}
-            floodColor="#000"
-            floodOpacity="0.35"
-          />
+        {/* sized to the view: a straight shadow has no bounding box to size a filter by */}
+        <filter
+          id="vm-arrow-shadow"
+          filterUnits="userSpaceOnUse"
+          x={view.left}
+          y={view.top}
+          width={view.width}
+          height={view.height}
+        >
+          <feGaussianBlur stdDeviation={shadowBlur} />
         </filter>
         <marker
           id="vm-arrowhead"
           viewBox="0 0 10 10"
           refX="8"
           refY="5"
-          markerWidth="3.5"
-          markerHeight="3.5"
+          markerWidth={HEAD_SIZES[0]}
+          markerHeight={HEAD_SIZES[0]}
           orient="auto-start-reverse"
         >
           <path d="M0,0 L10,5 L0,10 z" fill="#ef5a2a" stroke="#a83c17" strokeWidth="0.6" />
@@ -178,26 +198,37 @@ export function CurvedArrowsOverlay({
           viewBox="0 0 10 10"
           refX="8"
           refY="5"
-          markerWidth="4"
-          markerHeight="4"
+          markerWidth={HEAD_SIZES[1]}
+          markerHeight={HEAD_SIZES[1]}
           orient="auto-start-reverse"
         >
           <path d="M0,0 L10,5 L0,10 z" fill="#0c8a83" stroke="#075e59" strokeWidth="0.6" />
         </marker>
       </defs>
       <g filter="url(#vm-arrow-shadow)">
+        {paths.map((p) => (
+          <path
+            key={p.id}
+            d={p.shadowD}
+            fill="none"
+            stroke="#000"
+            strokeOpacity={SHADOW_OPACITY * opacityOf(p.selected)}
+            strokeWidth={strokeWidthOf(p.selected) + 1}
+            strokeLinecap="round"
+          />
+        ))}
+      </g>
+      <g>
         {paths.map((p) => {
-          const baseWidth = baseStrokeWidths[p.selected ? 1 : 0];
-          const strokeWidth = Math.min(Math.max(baseWidth * zoomScale, MIN_STROKE), MAX_STROKE);
+          const strokeWidth = strokeWidthOf(p.selected);
           return (
-            // with a selection, the other arrows recede so the highlighted one reads first
-            <g key={p.id} opacity={p.selected ? 1 : selectedDestinationId ? 0.55 : 0.85}>
-              {/* casing: 1px border on each side of the colored stroke */}
+            <g key={p.id} opacity={opacityOf(p.selected)}>
+              {/* casing: half a pixel of border on each side of the colored stroke */}
               <path
                 d={p.d}
                 fill="none"
                 stroke={p.selected ? '#075e59' : '#a83c17'}
-                strokeWidth={strokeWidth + 2}
+                strokeWidth={strokeWidth + 1}
                 strokeLinecap="round"
               />
               <path

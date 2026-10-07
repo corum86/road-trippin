@@ -71,9 +71,17 @@ fun ScreenTitle(text: String, modifier: Modifier = Modifier, bottomPadding: Dp =
     )
 }
 
-/** The Places tab: every saved place, filterable, with a button to add one. */
+/**
+ * The Places tab: every saved place, filterable, with a button to add one.
+ * `addActions` are extra buttons shown beside it, e.g. AI search.
+ */
 @Composable
-fun PlacesScreen(data: VacationMapData, onOpenDetail: (String) -> Unit, onAdd: () -> Unit) {
+fun PlacesScreen(
+    data: VacationMapData,
+    onOpenDetail: (String) -> Unit,
+    onAdd: () -> Unit,
+    addActions: @Composable () -> Unit = {},
+) {
     val t = LocalTranslator.current
     val store = LocalServices.current.store
     var filter by rememberSaveable { mutableStateOf(PlacesFilter.All) }
@@ -120,22 +128,27 @@ fun PlacesScreen(data: VacationMapData, onOpenDetail: (String) -> Unit, onAdd: (
             }
         }
 
-        // extended FAB
         Row(
-            Modifier
-                .align(Alignment.BottomEnd)
-                .padding(16.dp)
-                .height(56.dp)
-                .boxShadow(VmColors.Accent.copy(alpha = 0.35f), blur = 20.dp, offsetY = 6.dp, cornerRadius = 18.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(VmColors.Accent)
-                .clickable(role = Role.Button, onClick = onAdd)
-                .padding(start = 16.dp, end = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon("add", size = 24.dp, tint = Color.White)
-            VmText(t("form.addDestination"), size = 14.sp, weight = FontWeight.SemiBold, color = Color.White)
+            addActions()
+            // extended FAB
+            Row(
+                Modifier
+                    .height(56.dp)
+                    .boxShadow(VmColors.Accent.copy(alpha = 0.35f), blur = 20.dp, offsetY = 6.dp, cornerRadius = 18.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(VmColors.Accent)
+                    .clickable(role = Role.Button, onClick = onAdd)
+                    .padding(start = 16.dp, end = 20.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon("add", size = 24.dp, tint = Color.White)
+                VmText(t("form.addDestination"), size = 14.sp, weight = FontWeight.SemiBold, color = Color.White)
+            }
         }
     }
 }
