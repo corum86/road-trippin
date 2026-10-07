@@ -1,7 +1,6 @@
 /* Desktop shell (layout 2a), rendered at 1024px and wider: navigation rail,
    side panel, map stage and floating panels. It reuses the shared screens
-   (screens/screens.css) and adjusts their spacing here; values follow the
-   "Desktop (2a)" section of design_handoff_mobile_app/README.md. */
+   (screens/screens.css) and adjusts their spacing here. */
 
 .vm-desktop-shell {
   display: flex;

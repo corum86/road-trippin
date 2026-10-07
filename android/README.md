@@ -1,6 +1,6 @@
 # Vacation Map for Android
 
-The native Android version of the Vacation Map web app in this repository: Kotlin and Jetpack Compose, no WebView. It is the web app's mobile layout (design direction 1a in [design_handoff_mobile_app](../design_handoff_mobile_app/README.md)) screen for screen — Map, Places, Trip, Settings, destination detail, the add/edit form with pick-on-map, the trip sheets and the trip planner — and it reads and writes the same data, so a phone and a browser can share one map through a sync code.
+The native Android version of the Vacation Map web app in this repository: Kotlin and Jetpack Compose, no WebView. It is the web app's mobile layout screen for screen — Map, Places, Trip, Settings, destination detail, the add/edit form with pick-on-map, the trip sheets and the trip planner — and it reads and writes the same data, so a phone and a browser can share one map through a sync code.
 
 ## Build and run
 
