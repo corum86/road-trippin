@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import type {
   BudgetLevel,
   Destination,
@@ -8,9 +7,10 @@ import type {
   TravelGroup,
   TravelStyle,
 } from '../../types/models';
-import type { DestinationAiResult } from '../../types/ai';
+import type { AiFinding, DestinationAiResult } from '../../types/ai';
 import type { TranslationKey } from '../../i18n/translations';
 import type { TranslateFn } from '../../i18n/context';
+import { withFindings } from '../../services/aiFindings';
 import { formatDuration } from '../../services/routeFormat';
 
 /** Wizard steps in order. Research and per-place review share the "Review" segment. */
@@ -95,20 +95,15 @@ export type ResearchState =
   | { status: 'done'; result: DestinationAiResult }
   | { status: 'error'; error: string };
 
-/** Which findings are ticked to be saved, per tab. */
-export interface FindingPicks {
-  photos: boolean[];
-  facts: boolean[];
-  links: boolean[];
+/** Every finding starts ticked: the review is for unticking what isn't wanted. */
+export function defaultPicks(result: DestinationAiResult): boolean[] {
+  return result.findings.map(() => true);
 }
 
-/** Ticked by default: the first 3 photos, 4 facts and 2 links. */
-export function defaultPicks(result: DestinationAiResult): FindingPicks {
-  return {
-    photos: result.images.map((_, i) => i < 3),
-    facts: result.texts.map((_, i) => i < 4),
-    links: result.links.map((_, i) => i < 2),
-  };
+/** The findings of a researched place that are ticked to be saved. */
+export function keptFindings(research: ResearchState | undefined, picks: boolean[] | undefined): AiFinding[] {
+  if (research?.status !== 'done') return [];
+  return research.result.findings.filter((_, i) => picks?.[i]);
 }
 
 /** The research service works on destinations; present a suggestion as one. */
@@ -129,10 +124,8 @@ export function suggestionAsDestination(s: PlaceSuggestion): Destination {
 export function toPlannedPlace(
   s: PlaceSuggestion,
   research: ResearchState | undefined,
-  picks: FindingPicks | undefined,
+  picks: boolean[] | undefined,
 ): PlannedPlace {
-  const result = research?.status === 'done' ? research.result : null;
-  const ticked = <T>(items: T[], flags: boolean[] | undefined) => items.filter((_, i) => flags?.[i]);
   return {
     id: s.id,
     name: s.name,
@@ -144,21 +137,8 @@ export function toPlannedPlace(
       source: s.estimated ? 'straight-line-estimate' : 'osrm',
       fetchedAt: new Date().toISOString(),
     },
-    photos: result
-      ? ticked(result.images, picks?.photos).map((img) => ({ id: uuidv4(), url: img.imageUrl, caption: img.sourceTitle }))
-      : [],
-    attractions: result ? ticked(result.texts, picks?.facts).map((f) => f.fact) : [],
-    links: result ? ticked(result.links, picks?.links).map((l) => ({ id: uuidv4(), label: l.label, url: l.url })) : [],
+    ...withFindings({ photos: [], attractions: [], links: [] }, keptFindings(research, picks)),
   };
-}
-
-/** "en.wikipedia.org" from a link URL, for the review list. */
-export function domainOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '');
-  } catch {
-    return url;
-  }
 }
 
 /** "55 min drive · 50 km", or "… incl. ferry …" */

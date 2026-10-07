@@ -1,29 +1,19 @@
 import { useEffect, useState } from 'react';
-import { v4 as uuidv4 } from 'uuid';
 import { useMapDataStore } from '../../store/mapDataStore';
-import type { AiImageFinding, AiLinkFinding, AiTextFinding, DestinationAiResult } from '../../types/ai';
+import { domainOf, withFindings } from '../../services/aiFindings';
+import type { AiFinding, DestinationAiResult } from '../../types/ai';
 import { useI18n } from '../../i18n/context';
-import type { TranslationKey } from '../../i18n/translations';
 
 interface AiResearchStepperProps {
   results: DestinationAiResult[];
   onClose: () => void;
 }
 
-type TabId = 'images' | 'text' | 'links';
-
-const TABS: Array<{ id: TabId; labelKey: TranslationKey }> = [
-  { id: 'images', labelKey: 'stepper.tabImages' },
-  { id: 'text', labelKey: 'stepper.tabText' },
-  { id: 'links', labelKey: 'stepper.tabLinks' },
-];
-
 export function AiResearchStepper({ results, onClose }: AiResearchStepperProps) {
   const { t } = useI18n();
   const updateDestination = useMapDataStore((s) => s.updateDestination);
   const [localResults, setLocalResults] = useState(results);
   const [stepIndex, setStepIndex] = useState(0);
-  const [activeTab, setActiveTab] = useState<TabId>('images');
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -37,49 +27,18 @@ export function AiResearchStepper({ results, onClose }: AiResearchStepperProps) 
   const count = localResults.length;
   if (!step || count === 0) return null;
 
-  function markAdded(findingId: string) {
+  /** save the card to its destination: the text, the photo and the link together */
+  function addFinding(finding: AiFinding) {
+    const dest = useMapDataStore.getState().data?.destinations.find((d) => d.id === step.destinationId);
+    if (!dest) return;
+    updateDestination(dest.id, withFindings(dest, [finding]));
     setLocalResults((prev) =>
-      prev.map((r, i) => {
-        if (i !== stepIndex) return r;
-        return {
-          ...r,
-          images: r.images.map((f) => (f.id === findingId ? { ...f, added: true } : f)),
-          texts: r.texts.map((f) => (f.id === findingId ? { ...f, added: true } : f)),
-          links: r.links.map((f) => (f.id === findingId ? { ...f, added: true } : f)),
-        };
-      }),
+      prev.map((r, i) =>
+        i === stepIndex
+          ? { ...r, findings: r.findings.map((f) => (f.id === finding.id ? { ...f, added: true } : f)) }
+          : r,
+      ),
     );
-  }
-
-  function addText(finding: AiTextFinding) {
-    const dest = useMapDataStore.getState().data?.destinations.find((d) => d.id === step.destinationId);
-    if (!dest) return;
-    if (!dest.attractions.includes(finding.fact)) {
-      updateDestination(dest.id, { attractions: [...dest.attractions, finding.fact] });
-    }
-    markAdded(finding.id);
-  }
-
-  function addLink(finding: AiLinkFinding) {
-    const dest = useMapDataStore.getState().data?.destinations.find((d) => d.id === step.destinationId);
-    if (!dest) return;
-    if (!dest.links.some((l) => l.url === finding.url)) {
-      updateDestination(dest.id, {
-        links: [...dest.links, { id: uuidv4(), label: finding.label, url: finding.url }],
-      });
-    }
-    markAdded(finding.id);
-  }
-
-  function addImage(finding: AiImageFinding) {
-    const dest = useMapDataStore.getState().data?.destinations.find((d) => d.id === step.destinationId);
-    if (!dest) return;
-    if (!dest.photos.some((p) => p.url === finding.imageUrl)) {
-      updateDestination(dest.id, {
-        photos: [...dest.photos, { id: uuidv4(), url: finding.imageUrl, caption: finding.sourceTitle }],
-      });
-    }
-    markAdded(finding.id);
   }
 
   return (
@@ -97,93 +56,37 @@ export function AiResearchStepper({ results, onClose }: AiResearchStepperProps) 
           </button>
         </div>
 
-        <div className="vm-stepper-tabs">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={activeTab === tab.id ? 'vm-tab vm-tab-active' : 'vm-tab'}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {t(tab.labelKey)}
-            </button>
-          ))}
-        </div>
-
         <div className="vm-stepper-body">
           {step.status === 'error' ? (
             <p className="vm-import-error">{t('stepper.error', { error: step.error ?? '' })}</p>
+          ) : step.findings.length === 0 ? (
+            <p className="vm-stepper-empty">{t('stepper.nothing')}</p>
           ) : (
-            <>
-              {activeTab === 'images' &&
-                (step.images.length === 0 ? (
-                  <p className="vm-stepper-empty">{t('stepper.noImages')}</p>
-                ) : (
-                  <div className="vm-stepper-image-grid">
-                    {step.images.map((finding) => (
-                      <div className="vm-stepper-image-card" key={finding.id}>
-                        <img src={finding.imageUrl} alt={finding.sourceTitle} loading="lazy" />
-                        <div className="vm-stepper-image-caption">{finding.sourceTitle}</div>
-                        <button
-                          type="button"
-                          className="vm-ai-add-btn"
-                          disabled={finding.added}
-                          onClick={() => addImage(finding)}
-                          aria-label={t('stepper.addImage')}
-                        >
-                          {finding.added ? t('stepper.added') : t('stepper.add')}
-                        </button>
-                      </div>
-                    ))}
+            <div className="vm-stepper-cards">
+              {step.findings.map((finding) => (
+                <div className="vm-stepper-card" key={finding.id}>
+                  {finding.photo && <img src={finding.photo.imageUrl} alt={finding.photo.sourceTitle} loading="lazy" />}
+                  <div className="vm-stepper-card-body">
+                    {finding.name && <h3>{finding.name}</h3>}
+                    {finding.text && <p>{finding.text}</p>}
+                    {finding.link && (
+                      <a href={finding.link.url} target="_blank" rel="noopener noreferrer" title={finding.link.label}>
+                        {domainOf(finding.link.url)} ↗
+                      </a>
+                    )}
                   </div>
-                ))}
-
-              {activeTab === 'text' &&
-                (step.texts.length === 0 ? (
-                  <p className="vm-stepper-empty">{t('stepper.noFacts')}</p>
-                ) : (
-                  <ul className="vm-stepper-list">
-                    {step.texts.map((finding) => (
-                      <li className="vm-stepper-row" key={finding.id}>
-                        <span>{finding.fact}</span>
-                        <button
-                          type="button"
-                          className="vm-ai-add-btn"
-                          disabled={finding.added}
-                          onClick={() => addText(finding)}
-                          aria-label={t('stepper.addFact')}
-                        >
-                          {finding.added ? t('stepper.added') : t('stepper.add')}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ))}
-
-              {activeTab === 'links' &&
-                (step.links.length === 0 ? (
-                  <p className="vm-stepper-empty">{t('stepper.noLinks')}</p>
-                ) : (
-                  <ul className="vm-stepper-list">
-                    {step.links.map((finding) => (
-                      <li className="vm-stepper-row" key={finding.id}>
-                        <a href={finding.url} target="_blank" rel="noopener noreferrer">
-                          {finding.label}
-                        </a>
-                        <button
-                          type="button"
-                          className="vm-ai-add-btn"
-                          disabled={finding.added}
-                          onClick={() => addLink(finding)}
-                          aria-label={t('stepper.addLink')}
-                        >
-                          {finding.added ? t('stepper.added') : t('stepper.add')}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                ))}
-            </>
+                  <button
+                    type="button"
+                    className="vm-ai-add-btn"
+                    disabled={finding.added}
+                    onClick={() => addFinding(finding)}
+                    aria-label={t('stepper.addFinding', { name: finding.name || finding.text })}
+                  >
+                    {finding.added ? t('stepper.added') : t('stepper.add')}
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 

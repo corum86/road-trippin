@@ -199,33 +199,6 @@
   color: var(--accent-2-strong);
 }
 
-.vm-stepper-tabs {
-  display: flex;
-  gap: 4px;
-  padding: 14px 20px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.vm-tab {
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  font-weight: 600;
-  font-size: 13px;
-  padding: 8px 14px;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-
-.vm-tab:hover {
-  color: var(--text);
-}
-
-.vm-tab-active {
-  color: var(--accent-2-strong);
-  border-bottom-color: var(--accent-2-strong);
-}
-
 .vm-stepper-body {
   flex: 1;
   overflow-y: auto;
@@ -239,39 +212,14 @@
   text-align: center;
 }
 
-.vm-stepper-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.vm-stepper-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: color-mix(in srgb, var(--panel-bg-raised) 60%, transparent);
-}
-
-.vm-stepper-row a,
-.vm-stepper-row span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-
-.vm-stepper-image-grid {
+/* one card per thing found: photo, text and link together */
+.vm-stepper-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
   gap: 12px;
 }
 
-.vm-stepper-image-card {
+.vm-stepper-card {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   overflow: hidden;
@@ -280,21 +228,39 @@
   flex-direction: column;
 }
 
-.vm-stepper-image-card img {
+.vm-stepper-card img {
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 10;
   object-fit: cover;
   display: block;
 }
 
-.vm-stepper-image-caption {
-  font-size: 12px;
-  color: var(--text-muted);
-  padding: 6px 8px 0;
+.vm-stepper-card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px 0;
+  font-size: 13px;
   overflow-wrap: anywhere;
 }
 
-.vm-stepper-image-card .vm-ai-add-btn {
+.vm-stepper-card-body h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.vm-stepper-card-body p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.vm-stepper-card .vm-ai-add-btn {
+  align-self: flex-start;
+  margin: 10px 12px 12px;
+}
+
+.vm-ai-add-btn {
   margin: 8px;
 }
 

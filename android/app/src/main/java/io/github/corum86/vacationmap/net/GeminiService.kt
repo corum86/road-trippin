@@ -7,6 +7,7 @@ import io.github.corum86.vacationmap.model.LatLng
 import io.github.corum86.vacationmap.model.LinkItem
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.JsonArray
@@ -23,6 +24,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.net.URLDecoder
 
 // Same model as the web app (src/services/geminiService.ts).
 private const val GEMINI_MODEL = "gemini-3.5-flash-lite"
@@ -82,30 +84,49 @@ data class SuggestionRequest(
 internal fun stripCodeFences(raw: String): String =
     raw.replace(Regex("""^\s*```(?:json)?\s*""", RegexOption.IGNORE_CASE), "").replace(Regex("""\s*```\s*$"""), "")
 
-internal data class ParsedFindings(val facts: List<String>, val links: List<AiLinkFinding>)
+/** A sight as the model describes it, before its photo is looked up. */
+internal data class RawThing(val name: String, val text: String, val url: String, val wiki: String)
 
-internal fun parseFindings(rawText: String?): ParsedFindings {
-    if (rawText.isNullOrEmpty()) return ParsedFindings(emptyList(), emptyList())
-    fun facts(items: List<JsonElement>) = items.mapNotNull { it.string?.takeIf { fact -> fact.isNotBlank() } }
+private val HTTP_URL = Regex("^https?://", RegexOption.IGNORE_CASE)
+private val WIKIPEDIA_URL = Regex("""^https?://[^/]*\bwikipedia\.org/""", RegexOption.IGNORE_CASE)
+private val ENGLISH_WIKIPEDIA_PAGE = Regex("""^https?://en\.(?:m\.)?wikipedia\.org/wiki/([^?#]+)""", RegexOption.IGNORE_CASE)
+
+internal fun parseThings(rawText: String?): List<RawThing> {
+    if (rawText.isNullOrEmpty()) return emptyList()
+    fun sentence(text: String) = RawThing(name = "", text = text, url = "", wiki = "")
     try {
         val parsed = AppJson.parseToJsonElement(stripCodeFences(rawText))
-        if (parsed is JsonObject) {
-            val links = parsed["links"].items.mapNotNull { link ->
-                val url = link["url"].string?.takeIf { Regex("^https?://", RegexOption.IGNORE_CASE).containsMatchIn(it) }
-                    ?: return@mapNotNull null
-                AiLinkFinding(id = newId(), label = link["title"].string?.trim()?.takeIf { it.isNotEmpty() } ?: url, url = url)
-            }
-            return ParsedFindings(facts(parsed["facts"].items), links)
+        // older prompt shapes: {"facts": [...]} or a bare array of sentences
+        val list = parsed as? JsonArray ?: (parsed["things"] ?: parsed["facts"]) as? JsonArray
+        if (list != null) {
+            return list
+                .map { item ->
+                    item.string?.let { return@map sentence(it.trim()) }
+                    val url = item["url"].string?.trim() ?: ""
+                    RawThing(
+                        name = item["name"].string?.trim() ?: "",
+                        text = item["text"].string?.trim() ?: "",
+                        url = if (HTTP_URL.containsMatchIn(url)) url else "",
+                        wiki = item["wiki"].string?.trim() ?: "",
+                    )
+                }
+                .filter { it.name.isNotEmpty() || it.text.isNotEmpty() }
         }
-        // Older prompt shape: a bare JSON array of fact strings.
-        if (parsed is JsonArray) return ParsedFindings(facts(parsed), emptyList())
     } catch (_: Exception) {
         // fall through to the line-splitting fallback below
     }
-    return ParsedFindings(
-        facts = rawText.split('\n').map { it.replace(Regex("""^[-*\d.)\s]+"""), "").trim() }.filter { it.isNotEmpty() },
-        links = emptyList(),
-    )
+    return rawText.split('\n').map { it.replace(Regex("""^[-*\d.)\s]+"""), "").trim() }.filter { it.isNotEmpty() }.map(::sentence)
+}
+
+/** "Bourtzi Castle" from https://en.wikipedia.org/wiki/Bourtzi_Castle */
+internal fun englishWikipediaTitle(url: String): String? {
+    val path = ENGLISH_WIKIPEDIA_PAGE.find(url)?.groupValues?.get(1) ?: return null
+    return try {
+        // URLDecoder would also turn "+" into a space, which a path keeps
+        URLDecoder.decode(path.replace("+", "%2B"), "UTF-8").replace('_', ' ')
+    } catch (_: Exception) {
+        null
+    }
 }
 
 internal fun parsePlaceSuggestions(rawText: String?): List<RawPlaceSuggestion> {
@@ -136,7 +157,7 @@ internal fun parsePlaceSuggestions(rawText: String?): List<RawPlaceSuggestion> {
 }
 
 /**
- * Facts, links, translations and day-trip ideas from Google's Gemini API,
+ * Things to do, translations and day-trip ideas from Google's Gemini API,
  * called over plain REST. The key is baked into the build (see
  * app/build.gradle.kts); without one, every call throws
  * [GeminiApiKeyMissingException] and the UI explains.
@@ -215,43 +236,78 @@ class GeminiService(
     }
 
     // Google Search grounding has its own free-tier quota that 429s even when
-    // plain generateContent works fine. So the model provides facts and
-    // well-known links from its own knowledge, and images come from the
+    // plain generateContent works fine. So the model names the sights and a
+    // well-known link from its own knowledge, and their photos come from the
     // Wikimedia APIs instead (see WikimediaService).
-    private fun researchPrompt(dest: Destination, lang: String): String =
-        """
-        You are researching the travel destination "${dest.name}" (near latitude ${dest.location.lat}, longitude ${dest.location.lng}).
-        Provide 5 short, independent, interesting facts or things to do there, plus up to 5 relevant, well-known, stable URLs (official tourism sites, Wikipedia, notable attractions).
-        Write the facts and link titles in ${LANGUAGE_NAMES[lang] ?: "English"}.
-        Only include URLs you are confident actually exist. Return ONLY a JSON object of the shape:
-        {"facts": ["fact 1", "..."], "links": [{"title": "page title", "url": "https://..."}]}
-        No markdown formatting, no code fences, no extra commentary.
+    private fun researchPrompt(dest: Destination, lang: String): String {
+        val language = LANGUAGE_NAMES[lang] ?: "English"
+        return """
+            You are researching the travel destination "${dest.name}" (near latitude ${dest.location.lat}, longitude ${dest.location.lng}).
+            Suggest 6 specific sights or things to do there. For each give:
+            - "name": its short proper name (the sight, beach, museum, walk, market…), in $language
+            - "text": one or two sentences on what it is and why it is worth the visit, in $language
+            - "url": one relevant, well-known, stable web page about it (official site, tourism board or Wikipedia), or "" if you are not confident one exists
+            - "wiki": the title of its English Wikipedia article, or "" if it has none
+            Return ONLY a JSON object of the shape:
+            {"things": [{"name": "", "text": "", "url": "", "wiki": ""}]}
+            No markdown formatting, no code fences, no extra commentary.
         """.trimIndent()
+    }
 
     /**
-     * Facts and links from Gemini plus photos from Wikimedia for one place.
-     * A Gemini failure comes back as a result with `error` set; only a
-     * missing key throws.
+     * Give each sight its photo and link: its own Wikipedia article or Commons
+     * photo when one matches, else one of the photos taken around the
+     * destination, so a card is only left without a picture when there are none.
+     */
+    private suspend fun toFindings(things: List<RawThing>, dest: Destination, areaPhotos: List<AiPhoto>): List<AiFinding> {
+        val matches = coroutineScope {
+            things.map { thing ->
+                async {
+                    if (thing.name.isEmpty()) {
+                        SightMatch()
+                    } else {
+                        wikimedia.fetchSight(thing.name, thing.wiki.ifEmpty { englishWikipediaTitle(thing.url) }, dest.location)
+                    }
+                }
+            }.awaitAll()
+        }
+        val used = mutableSetOf<String>()
+        val spare = ArrayDeque(areaPhotos)
+        return things.mapIndexed { i, thing ->
+            val match = matches[i]
+            // two sights can resolve to the same article: only the first keeps its picture
+            var photo = match.photo?.takeIf { it.imageUrl !in used }
+            while (photo == null && spare.isNotEmpty()) photo = spare.removeFirst().takeIf { it.imageUrl !in used }
+            if (photo != null) used += photo.imageUrl
+            // a Wikipedia link comes from the lookup, which knows the article exists
+            val ownUrl = if (WIKIPEDIA_URL.containsMatchIn(thing.url)) "" else thing.url
+            val link = if (ownUrl.isNotEmpty()) AiLink(label = thing.name.ifEmpty { ownUrl }, url = ownUrl) else match.article
+            AiFinding(id = newId(), name = thing.name, text = thing.text, photo = photo, link = link)
+        }
+    }
+
+    /**
+     * Things to do from Gemini, each with a photo from Wikimedia and a link,
+     * for one place. A Gemini failure comes back as a result with `error`
+     * set; only a missing key throws.
      */
     suspend fun fetchAiFindingsForDestination(dest: Destination, lang: String = "en"): DestinationAiResult = coroutineScope {
-        // the Wikimedia image lookup runs in parallel with the Gemini call
-        val images = async { wikimedia.fetchImagesForDestination(dest) }
+        // the photos around the destination load in parallel with the Gemini call
+        val areaPhotos = async { wikimedia.fetchImagesForDestination(dest) }
         try {
-            val findings = parseFindings(generateWithRetries(researchPrompt(dest, lang)))
+            val things = parseThings(generateWithRetries(researchPrompt(dest, lang)))
             DestinationAiResult(
                 destinationId = dest.id,
                 destinationName = dest.name,
-                images = images.await(),
-                texts = findings.facts.map { AiTextFinding(newId(), it) },
-                links = findings.links,
+                findings = toFindings(things, dest, areaPhotos.await()),
             )
         } catch (e: CancellationException) {
             throw e
         } catch (e: GeminiApiKeyMissingException) {
-            images.cancel()
+            areaPhotos.cancel()
             throw e
         } catch (e: Exception) {
-            images.cancel()
+            areaPhotos.cancel()
             DestinationAiResult(dest.id, dest.name, error = formatError(e, "Gemini search failed."))
         }
     }

@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.text.font.FontFamily
 import com.github.takahirom.roborazzi.captureRoboImage
 import io.github.corum86.vacationmap.i18n.Lang
@@ -48,9 +49,15 @@ private const val SUGGESTIONS = """[
   {"name":"Atlantis","lat":10,"lng":10,"blurb":"Not a real place.","tags":[],"groups":[],"budget":1,"mustHaves":[],"ferry":false}
 ]"""
 
+// four sights: one with a Wikipedia article, one with a site of its own and a
+// photo by name, and two that only get a photo from around the place
 private const val FINDINGS = """```json
-{"facts":["Walk up to the castle for the view.","Swim at Valtos beach.","Take a boat to the sea caves.","Eat grilled octopus on the harbour.","Watch the sunset from the old town."],
- "links":[{"title":"Visit Greece","url":"https://www.visitgreece.gr/"},{"title":"Wikipedia","url":"https://en.wikipedia.org/wiki/Parga"},{"title":"Not a link","url":"ftp://nope"}]}
+{"things":[
+ {"name":"Castle of Parga","text":"Walk up for the view over the bay.","url":"https://en.wikipedia.org/wiki/Castle_of_Parga","wiki":"Castle of Parga"},
+ {"name":"Valtos Beach","text":"A long sandy beach behind the castle.","url":"https://www.visitgreece.gr/","wiki":""},
+ {"name":"Sea caves","text":"Take a boat to the caves.","url":"ftp://nope","wiki":"No Such Article"},
+ {"name":"Harbour tavernas","text":"Eat grilled octopus on the harbour.","url":"","wiki":""}
+]}
 ```"""
 
 /** Stands in for Gemini, OSRM, Wikimedia and Photon with fixed answers. */
@@ -77,19 +84,46 @@ private fun cannedBackend(request: Request): String? {
             }.toString()
         }
         "commons.wikimedia.org" -> buildJsonObject {
+            // around a place: four harbour views; by name: only the beach has a photo of its own
+            val titles = when {
+                url.queryParameter("generator") == "geosearch" -> (1..4).map { "Harbour view $it" }
+                url.queryParameter("gsrsearch")?.startsWith("Valtos Beach nearcoord:15km,") == true -> listOf("Valtos Beach")
+                else -> emptyList()
+            }
             putJsonObject("query") {
                 putJsonObject("pages") {
-                    for (i in 1..4) {
-                        putJsonObject(i.toString()) {
-                            put("title", "File:Harbour view $i.jpg")
+                    titles.forEachIndexed { i, title ->
+                        putJsonObject((i + 1).toString()) {
+                            put("title", "File:$title.jpg")
+                            put("index", i + 1)
                             putJsonArray("imageinfo") {
                                 add(
                                     buildJsonObject {
-                                        put("thumburl", "https://example.invalid/photo$i.jpg")
-                                        put("descriptionurl", "https://commons.wikimedia.org/wiki/File:Harbour_view_$i.jpg")
+                                        put("thumburl", "https://example.invalid/${title.replace(' ', '_')}.jpg")
+                                        put("descriptionurl", "https://commons.wikimedia.org/wiki/File:${title.replace(' ', '_')}.jpg")
                                     },
                                 )
                             }
+                        }
+                    }
+                }
+            }
+        }.toString()
+        "en.wikipedia.org" -> buildJsonObject {
+            val title = url.queryParameter("titles") ?: return null
+            putJsonObject("query") {
+                putJsonObject("pages") {
+                    if (title == "Castle of Parga") {
+                        putJsonObject("7") {
+                            put("title", title)
+                            put("fullurl", "https://en.wikipedia.org/wiki/Castle_of_Parga")
+                            putJsonObject("thumbnail") { put("source", "https://example.invalid/castle.jpg") }
+                        }
+                    } else {
+                        putJsonObject("-1") {
+                            put("title", title)
+                            put("missing", "")
+                            put("fullurl", "https://en.wikipedia.org/wiki/${title.replace(' ', '_')}")
                         }
                     }
                 }
@@ -178,9 +212,17 @@ class FlowTest {
         waitForText("Found things to do", timeoutMs = 60_000)
         capture("17-wizard-research")
         compose.onNodeWithText("Review findings").performClick()
+        // one card per sight, all ticked; its link is on the card, and there are no tabs
+        compose.onNodeWithText("4 of 4 ticked to save").assertExists()
+        compose.onNodeWithText("Castle of Parga").assertExists()
+        compose.onNodeWithText("Walk up for the view over the bay.").assertExists()
+        compose.onNodeWithText("en.wikipedia.org").assertExists()
+        compose.onNodeWithText("visitgreece.gr").assertExists()
+        compose.onNodeWithText("Photos", substring = true).assertDoesNotExist()
         capture("18-wizard-review")
-        compose.onNodeWithText("Things to do", substring = true).performClick()
-        capture("18-wizard-review-facts")
+        compose.onNodeWithText("Sea caves").performScrollTo().performClick()
+        compose.onNodeWithText("3 of 4 ticked to save").assertExists()
+        capture("18-wizard-review-unticked")
         compose.onNodeWithText("Next place").performClick()
         compose.onNodeWithText("Save 2 places & plan").performClick()
         capture("19-wizard-plan")
@@ -197,10 +239,26 @@ class FlowTest {
         val syvota = data.destinations.first { it.id == savedSyvota.id }
         assertEquals("Syvota (Zavia)", syvota.name)
         assertTrue(syvota.favorite)
-        assertEquals(4, syvota.attractions.size)
-        assertEquals(savedSyvota.photos.size + 3, syvota.photos.size)
+        // every card of the second place was left ticked: text, photo and link of each are saved
+        assertEquals(savedSyvota.attractions.size + 4, syvota.attractions.size)
+        assertEquals(savedSyvota.photos.size + 4, syvota.photos.size)
         val parga = data.destinations.first { it.name == "Parga" }
-        assertEquals(listOf("Visit Greece", "Wikipedia"), parga.links.map { it.label })
+        // the unticked card took its text and photo with it
+        assertEquals(
+            listOf(
+                "Castle of Parga: Walk up for the view over the bay.",
+                "Valtos Beach: A long sandy beach behind the castle.",
+                "Harbour tavernas: Eat grilled octopus on the harbour.",
+            ),
+            parga.attractions,
+        )
+        // the castle's photo is its article's, the beach's was found by name, the taverna's is from around Parga
+        assertEquals(listOf("Castle of Parga", "Valtos Beach", "Harbour view 2"), parga.photos.map { it.caption })
+        // a Wikipedia link is the article that was found; other links are the model's
+        assertEquals(
+            listOf("Castle of Parga" to "https://en.wikipedia.org/wiki/Castle_of_Parga", "Valtos Beach" to "https://www.visitgreece.gr/"),
+            parga.links.map { it.label to it.url },
+        )
         assertEquals(1500.0, parga.routeInfo?.durationSeconds)
         // both places are on a day, and not on the arrival day
         val planned = data.trip.plan.flatten()

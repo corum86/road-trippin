@@ -1,8 +1,8 @@
 import { ApiError, GoogleGenAI } from '@google/genai';
 import { v4 as uuidv4 } from 'uuid';
 import type { Destination } from '../types/models';
-import type { AiLinkFinding, AiTextFinding, DestinationAiResult } from '../types/ai';
-import { fetchImagesForDestination } from './wikimediaService';
+import type { AiFinding, AiPhoto, DestinationAiResult } from '../types/ai';
+import { fetchImagesForDestination, fetchSight, type SightMatch } from './wikimediaService';
 
 const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
@@ -82,14 +82,18 @@ const LANGUAGE_NAMES: Record<string, string> = {
 
 // Google Search grounding has its own free-tier quota that 429s even when
 // plain generateContent works fine (verified across several models). So the
-// model provides facts and well-known links from its own knowledge, and
-// images come from the Wikimedia APIs instead (see wikimediaService).
+// model names the sights and a well-known link from its own knowledge, and
+// their photos come from the Wikimedia APIs instead (see wikimediaService).
 function promptFor(dest: Destination, lang: string): string {
+  const language = LANGUAGE_NAMES[lang] ?? 'English';
   return `You are researching the travel destination "${dest.name}" (near latitude ${dest.location.lat}, longitude ${dest.location.lng}).
-Provide 5 short, independent, interesting facts or things to do there, plus up to 5 relevant, well-known, stable URLs (official tourism sites, Wikipedia, notable attractions).
-Write the facts and link titles in ${LANGUAGE_NAMES[lang] ?? 'English'}.
-Only include URLs you are confident actually exist. Return ONLY a JSON object of the shape:
-{"facts": ["fact 1", "..."], "links": [{"title": "page title", "url": "https://..."}]}
+Suggest 6 specific sights or things to do there. For each give:
+- "name": its short proper name (the sight, beach, museum, walk, market…), in ${language}
+- "text": one or two sentences on what it is and why it is worth the visit, in ${language}
+- "url": one relevant, well-known, stable web page about it (official site, tourism board or Wikipedia), or "" if you are not confident one exists
+- "wiki": the title of its English Wikipedia article, or "" if it has none
+Return ONLY a JSON object of the shape:
+{"things": [{"name": "", "text": "", "url": "", "wiki": ""}]}
 No markdown formatting, no code fences, no extra commentary.`;
 }
 
@@ -97,55 +101,93 @@ function stripCodeFences(raw: string): string {
   return raw.replace(/^\s*```(?:json)?\s*/i, '').replace(/\s*```\s*$/, '');
 }
 
-interface ParsedFindings {
-  facts: string[];
-  links: AiLinkFinding[];
+/** A sight as the model describes it, before its photo is looked up. */
+interface RawThing {
+  name: string;
+  text: string;
+  url: string;
+  wiki: string;
 }
 
-function parseFindings(rawText: string | undefined): ParsedFindings {
-  const empty: ParsedFindings = { facts: [], links: [] };
-  if (!rawText) return empty;
+function parseThings(rawText: string | undefined): RawThing[] {
+  if (!rawText) return [];
+  const sentence = (text: string): RawThing => ({ name: '', text, url: '', wiki: '' });
+  const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
   try {
     const parsed: unknown = JSON.parse(stripCodeFences(rawText));
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const obj = parsed as { facts?: unknown; links?: unknown };
-      const facts = Array.isArray(obj.facts)
-        ? obj.facts.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
-        : [];
-      const links = Array.isArray(obj.links)
-        ? obj.links
-            .filter(
-              (l): l is { title?: string; url: string } =>
-                !!l && typeof l === 'object' && typeof (l as { url?: unknown }).url === 'string',
-            )
-            .filter((l) => /^https?:\/\//i.test(l.url))
-            .map((l) => ({
-              id: uuidv4(),
-              kind: 'link' as const,
-              label: l.title?.trim() || l.url,
-              url: l.url,
-              added: false,
-            }))
-        : [];
-      return { facts, links };
-    }
-    // Older prompt shape: a bare JSON array of fact strings.
-    if (Array.isArray(parsed)) {
-      return {
-        facts: parsed.filter((x): x is string => typeof x === 'string' && x.trim().length > 0),
-        links: [],
-      };
+    // older prompt shapes: {"facts": [...]} or a bare array of sentences
+    const obj = parsed as { things?: unknown; facts?: unknown } | null;
+    const list = Array.isArray(parsed) ? parsed : (obj?.things ?? obj?.facts);
+    if (Array.isArray(list)) {
+      return list
+        .map((item: unknown): RawThing => {
+          if (typeof item === 'string') return sentence(item.trim());
+          const o = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
+          const url = str(o.url);
+          return { name: str(o.name), text: str(o.text), url: /^https?:\/\//i.test(url) ? url : '', wiki: str(o.wiki) };
+        })
+        .filter((thing) => thing.name || thing.text);
     }
   } catch {
     // fall through to the line-splitting fallback below
   }
-  return {
-    facts: rawText
-      .split('\n')
-      .map((line) => line.replace(/^[-*\d.)\s]+/, '').trim())
-      .filter((line) => line.length > 0),
-    links: [],
-  };
+  return rawText
+    .split('\n')
+    .map((line) => line.replace(/^[-*\d.)\s]+/, '').trim())
+    .filter((line) => line.length > 0)
+    .map(sentence);
+}
+
+const WIKIPEDIA_URL = /^https?:\/\/[^/]*\bwikipedia\.org\//i;
+
+/** "Bourtzi Castle" from https://en.wikipedia.org/wiki/Bourtzi_Castle */
+function englishWikipediaTitle(url: string): string | undefined {
+  const path = /^https?:\/\/en\.(?:m\.)?wikipedia\.org\/wiki\/([^?#]+)/i.exec(url)?.[1];
+  if (!path) return undefined;
+  try {
+    return decodeURIComponent(path).replace(/_/g, ' ');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Give each sight its photo and link: its own Wikipedia article or Commons
+ * photo when one matches, else one of the photos taken around the
+ * destination, so a card is only left without a picture when there are none.
+ */
+async function toFindings(things: RawThing[], dest: Destination, areaPhotos: AiPhoto[]): Promise<AiFinding[]> {
+  const matches = await Promise.all(
+    things.map((thing) =>
+      thing.name
+        ? fetchSight({
+            name: thing.name,
+            wikiTitle: thing.wiki || englishWikipediaTitle(thing.url),
+            near: dest.location,
+          })
+        : Promise.resolve<SightMatch>({}),
+    ),
+  );
+  const used = new Set<string>();
+  const spare = [...areaPhotos];
+  return things.map((thing, i) => {
+    const { photo: own, article } = matches[i];
+    // two sights can resolve to the same article: only the first keeps its picture
+    let photo = own && !used.has(own.imageUrl) ? own : undefined;
+    while (!photo && spare.length > 0) {
+      const next = spare.shift();
+      if (next && !used.has(next.imageUrl)) photo = next;
+    }
+    if (photo) used.add(photo.imageUrl);
+    // a Wikipedia link comes from the lookup, which knows the article exists
+    const ownUrl = WIKIPEDIA_URL.test(thing.url) ? '' : thing.url;
+    const link = ownUrl
+      ? { label: thing.name || ownUrl, url: ownUrl }
+      : article
+        ? { label: article.title, url: article.url }
+        : undefined;
+    return { id: uuidv4(), name: thing.name, text: thing.text, photo, link, added: false };
+  });
 }
 
 // Runs a plain generateContent call with the shared retry policy:
@@ -211,30 +253,21 @@ export async function fetchAiFindingsForDestination(dest: Destination, lang = 'e
 
   try {
     // Deliberately NO googleSearch tool here — see comment on promptFor.
-    // The Wikimedia image lookup runs in parallel with the Gemini call.
-    const [rawText, images] = await Promise.all([
+    // The photos around the destination load in parallel with the Gemini call.
+    const [rawText, areaPhotos] = await Promise.all([
       generateWithRetries(promptFor(dest, lang), `research for "${dest.name}"`),
       fetchImagesForDestination(dest),
     ]);
+    const findings = await toFindings(parseThings(rawText), dest, areaPhotos);
 
-    const { facts, links } = parseFindings(rawText);
-    const texts: AiTextFinding[] = facts.map((fact) => ({
-      id: uuidv4(),
-      kind: 'text' as const,
-      fact,
-      added: false,
-    }));
-
-    return { ...base, status: 'success', texts, links, images };
+    return { ...base, status: 'success', findings };
   } catch (err) {
     if (err instanceof GeminiApiKeyMissingError) throw err;
     return {
       ...base,
       status: 'error',
       error: formatGeminiError(err, 'Gemini search failed.'),
-      texts: [],
-      links: [],
-      images: [],
+      findings: [],
     };
   }
 }

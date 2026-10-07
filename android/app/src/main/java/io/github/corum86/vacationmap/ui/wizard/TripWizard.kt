@@ -131,9 +131,9 @@ fun TripWizard(
     var catalog by remember { mutableStateOf<Catalog>(Catalog.Loading) }
     val thumbnails = remember { mutableStateMapOf<String, String>() }
     val research = remember { mutableStateMapOf<String, ResearchState>() }
-    val picks = remember { mutableStateMapOf<String, FindingPicks>() }
+    // per place: which of its findings are ticked to be saved
+    val picks = remember { mutableStateMapOf<String, List<Boolean>>() }
     var reviewIndex by remember { mutableIntStateOf(0) }
-    var reviewTab by remember { mutableStateOf(ReviewTab.Photos) }
     var catalogAttempt by remember { mutableIntStateOf(0) }
     val scroll = rememberScrollState()
     val currentLanguage by rememberUpdatedState(lang)
@@ -230,31 +230,21 @@ fun TripWizard(
             emptyList()
         }
     }
-    val found = FoundTotals(
-        photos = selectedPlaces.sumOf { s -> picks[s.id]?.photos?.count { it } ?: 0 },
-        facts = selectedPlaces.sumOf { s -> picks[s.id]?.facts?.count { it } ?: 0 },
-        links = selectedPlaces.sumOf { s -> picks[s.id]?.links?.count { it } ?: 0 },
-    )
+    val found = countFindings(selectedPlaces.flatMap { keptFindings(research[it.id], picks[it.id]) })
 
     // ---- navigation
     LaunchedEffect(step, reviewIndex) { scroll.scrollTo(0) }
 
     fun goTo(next: WizardStep) {
         if (next == WizardStep.Research) queueResearch()
-        if (next == WizardStep.Review) {
-            reviewIndex = 0
-            reviewTab = ReviewTab.Photos
-        }
+        if (next == WizardStep.Review) reviewIndex = 0
         step = next
     }
 
     fun goBack() {
         when {
             step == WizardStep.Dates -> onClose()
-            step == WizardStep.Review && reviewIndex > 0 -> {
-                reviewIndex -= 1
-                reviewTab = ReviewTab.Photos
-            }
+            step == WizardStep.Review && reviewIndex > 0 -> reviewIndex -= 1
             // research is automatic; going back skips straight to the picks
             step == WizardStep.Review -> step = WizardStep.Places
             else -> step = WizardStep.entries[step.ordinal - 1]
@@ -301,12 +291,7 @@ fun TripWizard(
     fun next() {
         if (!valid) return
         when (step) {
-            WizardStep.Review -> if (!lastReviewPlace) {
-                reviewIndex += 1
-                reviewTab = ReviewTab.Photos
-            } else {
-                goTo(WizardStep.Plan)
-            }
+            WizardStep.Review -> if (!lastReviewPlace) reviewIndex += 1 else goTo(WizardStep.Plan)
             WizardStep.Plan -> finish()
             else -> goTo(WizardStep.entries[step.ordinal + 1])
         }
@@ -473,10 +458,8 @@ fun TripWizard(
                                 index = index,
                                 total = selectedPlaces.size,
                                 result = (research[place.id] as? ResearchState.Done)?.result,
-                                picks = picks[place.id] ?: FindingPicks(),
-                                tab = reviewTab,
+                                picks = picks[place.id] ?: emptyList(),
                                 thumbnail = thumbnails[place.id],
-                                onTab = { reviewTab = it },
                                 onPicks = { picks[place.id] = it },
                             )
                         }

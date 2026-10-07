@@ -1,7 +1,7 @@
 package io.github.corum86.vacationmap.net
 
-import io.github.corum86.vacationmap.data.newId
 import io.github.corum86.vacationmap.model.Destination
+import io.github.corum86.vacationmap.model.LatLng
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonElement
@@ -12,25 +12,47 @@ import okhttp3.OkHttpClient
 // What the trip planner and the AI research find for a place, before the
 // traveller decides what to keep.
 
-data class AiImageFinding(val id: String, val imageUrl: String, val sourceUrl: String, val sourceTitle: String)
+data class AiPhoto(
+    val imageUrl: String,
+    /** the page the photo comes from */
+    val sourceUrl: String,
+    val sourceTitle: String,
+)
 
-data class AiTextFinding(val id: String, val fact: String)
+data class AiLink(val label: String, val url: String)
 
-data class AiLinkFinding(val id: String, val label: String, val url: String)
+/** One researched sight or thing to do: shown as a card with its photo, text and link. */
+data class AiFinding(
+    val id: String,
+    /** the sight or activity; empty when the model only returned a sentence */
+    val name: String,
+    val text: String,
+    val photo: AiPhoto? = null,
+    val link: AiLink? = null,
+)
 
 data class DestinationAiResult(
     val destinationId: String,
     val destinationName: String,
     /** null on success */
     val error: String? = null,
-    val images: List<AiImageFinding> = emptyList(),
-    val texts: List<AiTextFinding> = emptyList(),
-    val links: List<AiLinkFinding> = emptyList(),
+    val findings: List<AiFinding> = emptyList(),
+)
+
+/** What a lookup of one sight found. */
+data class SightMatch(
+    val photo: AiPhoto? = null,
+    /** the Wikipedia article about the sight, when it has one */
+    val article: AiLink? = null,
 )
 
 private const val MAX_IMAGES = 8
 private const val THUMB_WIDTH = 640
 private const val FETCH_TIMEOUT_MS = 8000L
+
+// a sight's photo must have been taken this close to its destination, which
+// keeps the Syntagma Square of one town from showing another's
+private const val SIGHT_RADIUS_KM = 15
 
 // Skip non-photo files (maps, icons, audio) that geosearch can return.
 private val PHOTO_EXTENSIONS = Regex("""\.(jpe?g|png|webp)$""", RegexOption.IGNORE_CASE)
@@ -41,6 +63,9 @@ private val PHOTO_EXTENSIONS = Regex("""\.(jpe?g|png|webp)$""", RegexOption.IGNO
  *      coordinates (namespace 6 = File pages).
  *   2. Fallback: Wikipedia article search by destination name, taking each
  *      article's lead image.
+ *
+ * A single sight is looked up by name instead (see [fetchSight]): its
+ * Wikipedia article, else a Commons photo of that name taken nearby.
  */
 class WikimediaService(private val client: OkHttpClient) {
 
@@ -56,9 +81,24 @@ class WikimediaService(private val client: OkHttpClient) {
 
     private fun pagesOf(data: JsonElement?): List<JsonElement> = (data["query"]["pages"] as? JsonObject)?.values?.toList().orEmpty()
 
+    /** Search results in rank order (the API returns pages unordered). */
+    private fun byRank(pages: List<JsonElement>): List<JsonElement> = pages.sortedBy { it["index"].number ?: 0.0 }
+
     private fun cleanFileTitle(title: String?): String = (title ?: "").removePrefix("File:").replace(PHOTO_EXTENSIONS, "")
 
-    private suspend fun searchCommonsNearby(dest: Destination): List<AiImageFinding> {
+    private fun commonsPhotos(pages: List<JsonElement>): List<AiPhoto> = pages
+        .filter { PHOTO_EXTENSIONS.containsMatchIn(it["title"].string ?: "") }
+        .mapNotNull { page ->
+            val info = page["imageinfo"][0]
+            val imageUrl = info["thumburl"].string?.takeIf { it.isNotEmpty() } ?: info["url"].string ?: return@mapNotNull null
+            AiPhoto(
+                imageUrl = imageUrl,
+                sourceUrl = info["descriptionurl"].string?.takeIf { it.isNotEmpty() } ?: imageUrl,
+                sourceTitle = cleanFileTitle(page["title"].string),
+            )
+        }
+
+    private suspend fun searchCommonsNearby(dest: Destination): List<AiPhoto> {
         val url = urlWithQuery(
             "https://commons.wikimedia.org/w/api.php",
             "action" to "query",
@@ -72,22 +112,10 @@ class WikimediaService(private val client: OkHttpClient) {
             "iiprop" to "url",
             "iiurlwidth" to THUMB_WIDTH.toString(),
         )
-        return pagesOf(fetchJson(url))
-            .filter { PHOTO_EXTENSIONS.containsMatchIn(it["title"].string ?: "") }
-            .mapNotNull { page ->
-                val info = page["imageinfo"][0]
-                val imageUrl = info["thumburl"].string?.takeIf { it.isNotEmpty() } ?: info["url"].string ?: return@mapNotNull null
-                AiImageFinding(
-                    id = newId(),
-                    imageUrl = imageUrl,
-                    sourceUrl = info["descriptionurl"].string?.takeIf { it.isNotEmpty() } ?: imageUrl,
-                    sourceTitle = cleanFileTitle(page["title"].string),
-                )
-            }
-            .take(MAX_IMAGES)
+        return commonsPhotos(pagesOf(fetchJson(url))).take(MAX_IMAGES)
     }
 
-    private suspend fun searchWikipediaByName(dest: Destination): List<AiImageFinding> {
+    private suspend fun searchWikipediaByName(dest: Destination): List<AiPhoto> {
         val url = urlWithQuery(
             "https://en.wikipedia.org/w/api.php",
             "action" to "query",
@@ -100,11 +128,10 @@ class WikimediaService(private val client: OkHttpClient) {
             "pithumbsize" to THUMB_WIDTH.toString(),
             "inprop" to "url",
         )
-        return pagesOf(fetchJson(url))
+        return byRank(pagesOf(fetchJson(url)))
             .mapNotNull { page ->
                 val imageUrl = page["thumbnail"]["source"].string ?: return@mapNotNull null
-                AiImageFinding(
-                    id = newId(),
+                AiPhoto(
                     imageUrl = imageUrl,
                     sourceUrl = page["fullurl"].string?.takeIf { it.isNotEmpty() } ?: imageUrl,
                     sourceTitle = page["title"].string ?: dest.name,
@@ -113,7 +140,59 @@ class WikimediaService(private val client: OkHttpClient) {
             .take(MAX_IMAGES)
     }
 
+    /** The English Wikipedia article with exactly this title (redirects followed), if there is one. */
+    private suspend fun fetchWikipediaArticle(title: String): SightMatch {
+        val url = urlWithQuery(
+            "https://en.wikipedia.org/w/api.php",
+            "action" to "query",
+            "format" to "json",
+            "titles" to title,
+            "redirects" to "1",
+            "prop" to "pageimages|info",
+            "piprop" to "thumbnail",
+            "pithumbsize" to THUMB_WIDTH.toString(),
+            "inprop" to "url",
+        )
+        val page = pagesOf(fetchJson(url)).firstOrNull() as? JsonObject ?: return SightMatch()
+        val pageTitle = page["title"].string?.takeIf { it.isNotEmpty() }
+        val pageUrl = page["fullurl"].string?.takeIf { it.isNotEmpty() }
+        // "missing" is present (as "") when no article has that title
+        if (pageTitle == null || pageUrl == null || "missing" in page) return SightMatch()
+        return SightMatch(
+            photo = page["thumbnail"]["source"].string?.let { AiPhoto(imageUrl = it, sourceUrl = pageUrl, sourceTitle = pageTitle) },
+            article = AiLink(label = pageTitle, url = pageUrl),
+        )
+    }
+
+    /** Commons photos matching the name among those taken around the point, best match first. */
+    private suspend fun searchCommonsByName(name: String, near: LatLng): List<AiPhoto> {
+        val url = urlWithQuery(
+            "https://commons.wikimedia.org/w/api.php",
+            "action" to "query",
+            "format" to "json",
+            "generator" to "search",
+            "gsrsearch" to "$name nearcoord:${SIGHT_RADIUS_KM}km,${near.lat},${near.lng}",
+            "gsrnamespace" to "6",
+            "gsrlimit" to "3",
+            "prop" to "imageinfo",
+            "iiprop" to "url",
+            "iiurlwidth" to THUMB_WIDTH.toString(),
+        )
+        return commonsPhotos(byRank(pagesOf(fetchJson(url))))
+    }
+
     /** Best-effort: any failure just means fewer/no images, never a thrown error. */
-    suspend fun fetchImagesForDestination(dest: Destination): List<AiImageFinding> =
+    suspend fun fetchImagesForDestination(dest: Destination): List<AiPhoto> =
         searchCommonsNearby(dest).ifEmpty { searchWikipediaByName(dest) }
+
+    /**
+     * Best-effort photo and Wikipedia article for one sight (empty when
+     * nothing matches). `wikiTitle` is the title of its English Wikipedia
+     * article as far as the model knows; `near` is the destination it belongs to.
+     */
+    suspend fun fetchSight(name: String, wikiTitle: String?, near: LatLng): SightMatch {
+        val match = if (wikiTitle != null) fetchWikipediaArticle(wikiTitle) else SightMatch()
+        if (match.photo != null) return match
+        return match.copy(photo = searchCommonsByName(name, near).firstOrNull())
+    }
 }

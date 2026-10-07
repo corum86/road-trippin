@@ -3,6 +3,7 @@ import type { DestinationAiResult } from '../../types/ai';
 import { useI18n, type TranslateFn } from '../../i18n/context';
 import { addDays, formatDayLabel } from '../../services/dates';
 import { formatDuration } from '../../services/routeFormat';
+import { countFindings, domainOf } from '../../services/aiFindings';
 import { dayDriveMinutes } from '../../services/tripPlan';
 import type { MatchReason, RankedSuggestion } from '../../services/tripSuggestions';
 import { Icon } from '../ui/Icon';
@@ -16,9 +17,7 @@ import {
   LENGTH_OPTIONS,
   MUST_HAVE_OPTIONS,
   STYLE_OPTIONS,
-  domainOf,
   driveLine,
-  type FindingPicks,
   type ResearchState,
 } from './wizardModel';
 
@@ -396,6 +395,7 @@ export function ResearchStep({ places, research, onRetry }: ResearchStepProps) {
     <div className="vm-wizard-research">
       {places.map((place) => {
         const state = research[place.id] ?? { status: 'queued' };
+        const found = state.status === 'done' ? countFindings(state.result.findings) : null;
         return (
           <div
             key={place.id}
@@ -410,12 +410,8 @@ export function ResearchStep({ places, research, onRetry }: ResearchStepProps) {
             <span className="vm-wizard-option-text">
               <span className="vm-wizard-research-name">{place.name}</span>
               <span className={`vm-meta${state.status === 'error' ? ' vm-wizard-research-error' : ''}`}>
-                {state.status === 'done'
-                  ? t('wizard.foundFmt', {
-                      i: state.result.images.length,
-                      t: state.result.texts.length,
-                      l: state.result.links.length,
-                    })
+                {found
+                  ? t('wizard.foundFmt', { i: found.photos, t: found.facts, l: found.links })
                   : state.status === 'loading'
                     ? t('wizard.searching')
                     : state.status === 'error'
@@ -437,32 +433,22 @@ export function ResearchStep({ places, research, onRetry }: ResearchStepProps) {
 
 // ---------------------------------------------------------------- 8 review
 
-export type ReviewTab = 'photos' | 'facts' | 'links';
-
 interface ReviewStepProps {
   place: PlaceSuggestion;
   index: number;
   total: number;
   result: DestinationAiResult | null;
-  picks: FindingPicks;
-  tab: ReviewTab;
+  /** which findings are ticked to be saved, by position */
+  picks: boolean[];
   thumbnail?: string;
-  onTab: (tab: ReviewTab) => void;
-  onPicks: (picks: FindingPicks) => void;
+  onPicks: (picks: boolean[]) => void;
 }
 
-export function ReviewStep({ place, index, total, result, picks, tab, thumbnail, onTab, onPicks }: ReviewStepProps) {
+export function ReviewStep({ place, index, total, result, picks, thumbnail, onPicks }: ReviewStepProps) {
   const { t } = useI18n();
-  const tabs: Array<{ id: ReviewTab; labelKey: 'wizard.tab.photos' | 'wizard.tab.todo' | 'wizard.tab.links' }> = [
-    { id: 'photos', labelKey: 'wizard.tab.photos' },
-    { id: 'facts', labelKey: 'wizard.tab.todo' },
-    { id: 'links', labelKey: 'wizard.tab.links' },
-  ];
-  const flags = picks[tab];
-  const allOn = flags.length > 0 && flags.every(Boolean);
-  const setFlags = (next: boolean[]) => onPicks({ ...picks, [tab]: next });
-  const toggle = (i: number) => setFlags(flags.map((on, j) => (j === i ? !on : on)));
-  const headerPhoto = thumbnail ?? result?.images[0]?.imageUrl;
+  const findings = result?.findings ?? [];
+  const allOn = findings.length > 0 && findings.every((_, i) => picks[i]);
+  const headerPhoto = thumbnail ?? findings.find((f) => f.photo)?.photo?.imageUrl;
 
   return (
     <>
@@ -476,80 +462,63 @@ export function ReviewStep({ place, index, total, result, picks, tab, thumbnail,
           <span className="vm-meta">{driveLine(place, t)}</span>
         </span>
       </div>
-      <div className="vm-wizard-tabs" role="tablist">
-        {tabs.map((item) => {
-          const tabFlags = picks[item.id];
+      {findings.length === 0 ? (
+        <div className="vm-wizard-empty">{t('wizard.nothingFound')}</div>
+      ) : (
+        <div className="vm-wizard-tick-bar">
+          <span className="vm-meta">
+            {t('wizard.tickedFmt', { k: findings.filter((_, i) => picks[i]).length, n: findings.length })}
+          </span>
+          <button type="button" className="vm-text-btn" onClick={() => onPicks(findings.map(() => !allOn))}>
+            {allOn ? t('wizard.clearAll') : t('wizard.selectAll')}
+          </button>
+        </div>
+      )}
+      <div className="vm-wizard-cards">
+        {findings.map((finding, i) => {
+          const on = !!picks[i];
           return (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              aria-selected={tab === item.id}
-              className={`vm-wizard-tab${tab === item.id ? ' vm-wizard-tab-on' : ''}`}
-              onClick={() => onTab(item.id)}
-            >
-              {t(item.labelKey)} {tabFlags.filter(Boolean).length}/{tabFlags.length}
-            </button>
+            // the link sits beside the tick button, not inside it, so it stays a real link
+            <div key={finding.id} className={`vm-wizard-card${on ? ' vm-wizard-on' : ''}`}>
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={on}
+                className="vm-wizard-card-pick"
+                onClick={() => onPicks(findings.map((_, j) => (j === i ? !on : !!picks[j])))}
+              >
+                <span className="vm-wizard-card-photo">
+                  {finding.photo ? (
+                    <img src={finding.photo.imageUrl} alt={finding.photo.sourceTitle} loading="lazy" />
+                  ) : (
+                    <Icon name="landscape" size={32} />
+                  )}
+                  <span className="vm-wizard-photo-badge">
+                    <Icon name={on ? 'check' : 'add'} size={18} />
+                  </span>
+                </span>
+                <span className="vm-wizard-card-body">
+                  {finding.name && <span className="vm-wizard-card-name">{finding.name}</span>}
+                  {finding.text && <span className="vm-wizard-card-text">{finding.text}</span>}
+                </span>
+              </button>
+              {finding.link && (
+                <a
+                  className="vm-wizard-card-link"
+                  href={finding.link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={finding.link.label}
+                >
+                  <Icon name="link" size={18} />
+                  <span className="vm-wizard-card-domain">{domainOf(finding.link.url)}</span>
+                  <Icon name="open_in_new" size={16} />
+                </a>
+              )}
+            </div>
           );
         })}
       </div>
-      <div className="vm-wizard-tick-bar">
-        <span className="vm-meta">{t('wizard.tickHint')}</span>
-        {flags.length > 0 && (
-          <button type="button" className="vm-text-btn" onClick={() => setFlags(flags.map(() => !allOn))}>
-            {allOn ? t('wizard.clearAll') : t('wizard.selectAll')}
-          </button>
-        )}
-      </div>
-      {flags.length === 0 && <div className="vm-wizard-empty">{t('wizard.nothingFound')}</div>}
-      {tab === 'photos' && result && (
-        <div className="vm-wizard-photos">
-          {result.images.map((image, i) => (
-            <button
-              key={image.id}
-              type="button"
-              role="checkbox"
-              aria-checked={flags[i]}
-              className={`vm-wizard-photo${flags[i] ? ' vm-wizard-on' : ''}`}
-              onClick={() => toggle(i)}
-            >
-              <img src={image.imageUrl} alt={image.sourceTitle} loading="lazy" />
-              <span className="vm-wizard-photo-caption">{image.sourceTitle}</span>
-              <span className="vm-wizard-photo-badge">
-                <Icon name={flags[i] ? 'check' : 'add'} size={18} />
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
-      {tab !== 'photos' && result && (
-        <div className="vm-wizard-findings">
-          {(tab === 'facts'
-            ? result.texts.map((f) => ({ id: f.id, label: f.fact, domain: '' }))
-            : result.links.map((l) => ({ id: l.id, label: l.label, domain: domainOf(l.url) }))
-          ).map((item, i) => (
-            <button
-              key={item.id}
-              type="button"
-              role="checkbox"
-              aria-checked={flags[i]}
-              className={`vm-wizard-finding${flags[i] ? ' vm-wizard-on' : ''}`}
-              onClick={() => toggle(i)}
-            >
-              <Icon
-                name={flags[i] ? 'check_box' : 'check_box_outline_blank'}
-                size={24}
-                filled={flags[i]}
-                className={flags[i] ? 'vm-text-teal' : 'vm-text-faint'}
-              />
-              <span className="vm-wizard-option-text">
-                <span className="vm-wizard-finding-label">{item.label}</span>
-                {item.domain && <span className="vm-wizard-finding-domain">{item.domain}</span>}
-              </span>
-            </button>
-          ))}
-        </div>
-      )}
     </>
   );
 }

@@ -35,11 +35,11 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -579,12 +579,9 @@ internal fun ResearchStep(places: List<PlaceSuggestion>, research: Map<String, R
                     VmText(place.name, size = 14.sp, weight = FontWeight.SemiBold)
                     VmText(
                         when (state) {
-                            is ResearchState.Done -> t(
-                                "wizard.foundFmt",
-                                "i" to state.result.images.size,
-                                "t" to state.result.texts.size,
-                                "l" to state.result.links.size,
-                            )
+                            is ResearchState.Done -> countFindings(state.result.findings).let { found ->
+                                t("wizard.foundFmt", "i" to found.photos, "t" to found.facts, "l" to found.links)
+                            }
                             ResearchState.Loading -> t("wizard.searching")
                             is ResearchState.Error -> t("wizard.researchFailed", "error" to state.message)
                             ResearchState.Queued -> t("wizard.queued")
@@ -601,43 +598,25 @@ internal fun ResearchStep(places: List<PlaceSuggestion>, research: Map<String, R
 
 // ---------------------------------------------------------------- 8 review
 
-internal enum class ReviewTab(val labelKey: String) {
-    Photos("wizard.tab.photos"),
-    Facts("wizard.tab.todo"),
-    Links("wizard.tab.links"),
-}
-
-private fun FindingPicks.flagsOf(tab: ReviewTab): List<Boolean> = when (tab) {
-    ReviewTab.Photos -> photos
-    ReviewTab.Facts -> facts
-    ReviewTab.Links -> links
-}
-
-private fun FindingPicks.with(tab: ReviewTab, flags: List<Boolean>): FindingPicks = when (tab) {
-    ReviewTab.Photos -> copy(photos = flags)
-    ReviewTab.Facts -> copy(facts = flags)
-    ReviewTab.Links -> copy(links = flags)
-}
-
 @Composable
 internal fun ReviewStep(
     place: PlaceSuggestion,
     index: Int,
     total: Int,
     result: DestinationAiResult?,
-    picks: FindingPicks,
-    tab: ReviewTab,
+    /** which findings are ticked to be saved, by position */
+    picks: List<Boolean>,
     thumbnail: String?,
-    onTab: (ReviewTab) -> Unit,
-    onPicks: (FindingPicks) -> Unit,
+    onPicks: (List<Boolean>) -> Unit,
 ) {
     val t = LocalTranslator.current
-    val flags = picks.flagsOf(tab)
+    val uriHandler = LocalUriHandler.current
+    val findings = result?.findings.orEmpty()
+    val flags = findings.indices.map { picks.getOrElse(it) { false } }
     val allOn = flags.isNotEmpty() && flags.all { it }
-    fun toggle(i: Int) = onPicks(picks.with(tab, flags.mapIndexed { j, on -> if (j == i) !on else on }))
 
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Thumb(thumbnail ?: result?.images?.firstOrNull()?.imageUrl, 64.dp, 14.dp)
+        Thumb(thumbnail ?: findings.firstNotNullOfOrNull { it.photo }?.imageUrl, 64.dp, 14.dp)
         Column(Modifier.weight(1f)) {
             VmText(
                 t("wizard.placeOf", "i" to index + 1, "n" to total).uppercase(),
@@ -651,127 +630,100 @@ internal fun ReviewStep(
         }
     }
 
-    Row(Modifier.fillMaxWidth().drawBehind { drawRect(VmColors.Border, Offset(0f, size.height - 1.dp.toPx()), Size(size.width, 1.dp.toPx())) }) {
-        for (item in ReviewTab.entries) {
-            val on = item == tab
-            val tabFlags = picks.flagsOf(item)
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(44.dp)
-                    .clickable(role = Role.Tab) { onTab(item) }
-                    .semantics { selected = on }
-                    .drawBehind {
-                        if (on) drawRect(VmColors.Accent2, Offset(0f, size.height - 2.dp.toPx()), Size(size.width, 2.dp.toPx()))
-                    },
-                contentAlignment = Alignment.Center,
-            ) {
-                VmText(
-                    "${t(item.labelKey)} ${tabFlags.count { it }}/${tabFlags.size}",
-                    size = 13.sp,
-                    weight = FontWeight.SemiBold,
-                    color = if (on) VmColors.Accent2 else VmColors.TextMuted,
-                    maxLines = 1,
-                )
-            }
-        }
+    if (findings.isEmpty()) {
+        DashedNote(t("wizard.nothingFound"))
+        return
     }
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-        VmText(t("wizard.tickHint"), size = 12.sp, color = VmColors.TextMuted)
-        if (flags.isNotEmpty()) {
-            TextBtn(
-                if (allOn) t("wizard.clearAll") else t("wizard.selectAll"),
-                onClick = { onPicks(picks.with(tab, flags.map { !allOn })) },
-                fontSize = 13.sp,
-            )
-        }
+        VmText(t("wizard.tickedFmt", "k" to flags.count { it }, "n" to flags.size), size = 12.sp, color = VmColors.TextMuted)
+        TextBtn(
+            if (allOn) t("wizard.clearAll") else t("wizard.selectAll"),
+            onClick = { onPicks(flags.map { !allOn }) },
+            fontSize = 13.sp,
+        )
     }
 
-    if (flags.isEmpty()) DashedNote(t("wizard.nothingFound"))
-
-    if (tab == ReviewTab.Photos && result != null) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            for (rowImages in result.images.withIndex().chunked(2)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for ((i, image) in rowImages) {
-                        val on = flags.getOrElse(i) { false }
-                        val shape = RoundedCornerShape(14.dp)
-                        StripedBox(
-                            Modifier
-                                .weight(1f)
-                                .aspectRatio(4f / 3f)
-                                .alpha(if (on) 1f else 0.55f)
-                                .clip(shape)
-                                .border(2.dp, if (on) VmColors.Accent2 else Color.Transparent, shape)
-                                .clickable(role = Role.Checkbox) { toggle(i) }
-                                .semantics { selected = on },
-                        ) {
-                            Box(Modifier.fillMaxSize()) {
-                                PhotoImage(image.imageUrl, image.sourceTitle, Modifier.fillMaxSize())
-                                VmText(
-                                    image.sourceTitle,
-                                    Modifier
-                                        .align(Alignment.BottomStart)
-                                        .fillMaxWidth()
-                                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.5f))))
-                                        .padding(start = 8.dp, end = 8.dp, top = 14.dp, bottom = 6.dp),
-                                    size = 10.sp,
-                                    weight = FontWeight.Medium,
-                                    color = Color.White,
-                                    maxLines = 1,
-                                    lineHeight = 1.3.em,
-                                    style = LocalTextStyle.current.copy(fontFamily = FontFamily.Monospace),
-                                )
-                                Box(
-                                    Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(6.dp)
-                                        .size(28.dp)
-                                        .shadowSm(14.dp)
-                                        .background(if (on) VmColors.Accent2 else VmColors.Text.copy(alpha = 0.35f), CircleShape)
-                                        .border(2.dp, Color.White, CircleShape),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(if (on) "check" else "add", size = 18.dp, tint = Color.White)
-                                }
+    // one card per thing found: photo, text and link together
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        findings.forEachIndexed { i, finding ->
+            val on = flags[i]
+            val shape = RoundedCornerShape(18.dp)
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(shape)
+                    .background(if (on) Color(0xFFF1F8F7) else VmColors.Surface)
+                    .border(1.5.dp, if (on) VmColors.Accent2 else VmColors.Border, shape),
+            ) {
+                // the link sits below the tick area, not inside it, so tapping it opens the page
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(role = Role.Checkbox) { onPicks(flags.mapIndexed { j, flag -> if (j == i) !flag else flag }) }
+                        .semantics { selected = on },
+                ) {
+                    StripedBox(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            val photo = finding.photo
+                            if (photo != null) {
+                                PhotoImage(photo.imageUrl, photo.sourceTitle, Modifier.fillMaxSize())
+                            } else {
+                                Icon("landscape", size = 32.dp, tint = VmColors.TextFaint)
+                            }
+                            // unticked: stays readable, but visibly set aside
+                            if (!on) Box(Modifier.fillMaxSize().background(Color.White.copy(alpha = 0.55f)))
+                            Box(
+                                Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(8.dp)
+                                    .size(28.dp)
+                                    .shadowSm(14.dp)
+                                    .background(if (on) VmColors.Accent2 else VmColors.Text.copy(alpha = 0.35f), CircleShape)
+                                    .border(2.dp, Color.White, CircleShape),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(if (on) "check" else "add", size = 18.dp, tint = Color.White)
                             }
                         }
                     }
-                    // keep a lone last photo at half width
-                    if (rowImages.size == 1) Box(Modifier.weight(1f))
+                    Column(
+                        Modifier.padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        val textColor = if (on) VmColors.Text else VmColors.TextMuted
+                        if (finding.name.isNotEmpty()) {
+                            VmText(finding.name, size = 15.sp, weight = FontWeight.Bold, color = textColor, lineHeight = 1.3.em)
+                        }
+                        if (finding.text.isNotEmpty()) VmText(finding.text, size = 13.sp, color = textColor, lineHeight = 1.45.em)
+                    }
                 }
-            }
-        }
-    }
-
-    if (tab != ReviewTab.Photos && result != null) {
-        val items = if (tab == ReviewTab.Facts) {
-            result.texts.map { it.fact to "" }
-        } else {
-            result.links.map { it.label to domainOf(it.url) }
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items.forEachIndexed { i, (label, domain) ->
-                val on = flags.getOrElse(i) { false }
-                val shape = RoundedCornerShape(14.dp)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .defaultMinSize(minHeight = 52.dp)
-                        .clip(shape)
-                        .background(VmColors.Surface)
-                        .border(1.dp, if (on) Color(0x730FA9A0) else VmColors.Border, shape)
-                        .clickable(role = Role.Checkbox) { toggle(i) }
-                        .semantics { selected = on }
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    CheckBoxIcon(on)
-                    Column(Modifier.weight(1f)) {
-                        VmText(label, size = 14.sp, weight = FontWeight.Medium)
-                        if (domain.isNotEmpty()) VmText(domain, size = 12.sp, color = VmColors.Accent2)
+                finding.link?.let { link ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .drawBehind { drawRect(VmColors.Border, size = Size(size.width, 1.dp.toPx())) }
+                            .clickable(role = Role.Button) {
+                                try {
+                                    uriHandler.openUri(link.url)
+                                } catch (_: Exception) {
+                                    // no app can open this link
+                                }
+                            }
+                            .defaultMinSize(minHeight = 44.dp)
+                            .padding(horizontal = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        VmText(
+                            domainOf(link.url),
+                            Modifier.weight(1f),
+                            size = 13.sp,
+                            weight = FontWeight.SemiBold,
+                            color = VmColors.Accent2,
+                            maxLines = 1,
+                        )
+                        Icon("open_in_new", size = 16.dp, tint = VmColors.Accent2)
                     }
                 }
             }
@@ -780,8 +732,6 @@ internal fun ReviewStep(
 }
 
 // ---------------------------------------------------------------- 9 plan
-
-internal class FoundTotals(val photos: Int, val facts: Int, val links: Int)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
